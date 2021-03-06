@@ -170,3 +170,163 @@ const styles = {
  <h1 style={{ display: user.display } }>{user.name}</h1>
 ````
 
+#### 组件间传值
+
+##### 父传子
+
+```` jsx
+`类组件间传值`
+
+// 子组件 props
+class Child extends Component {
+    constructor(props) {
+        // 如果没有其他state,则不用调用constructor
+        super(props)
+        this.state = {
+            name: '我自己的'
+        }
+    }
+    render() {
+        const { msg, age } = this.props
+        const { name } = this.state
+        return (
+            <div>
+                <h1>{msg}</h1>
+                <h1>{age}</h1>
+                <h1>{name}</h1>
+            </div>
+        )
+    }
+}
+// 父组件 属性绑定
+export default function App() {
+    return (
+        <div>
+            {* 第一种 *}
+            <Child msg={this.state.msg} age={this.state.age} />
+            {* 第二种,使用展开运算符 *}
+            <Child {...this.state} />
+        </div>
+    )
+}
+
+// 函数式组件，第一个参数默认为props传递进来
+function Child(props) {
+    const { msg, age } = props
+    return (
+        <div>
+            <h1>{msg}</h1>
+            <h1>{age}</h1>
+        </div>
+    )
+}
+
+
+// 对传入的属性进行校验
+
+Child.propTypes = {
+    name: PropTypes.string,
+    age: PropTyeps.number
+}
+
+````
+
+##### 子传父
+
+```` jsx
+// 子组件中
+sendMsg() {
+    const { itemClick } = this.props
+    // 要emit的事件
+    itemClick(this.state.msg)
+}
+
+// 父组件中监听
+ <Child itemClick={(msg: string) => this.onMsg(msg)} />
+
+onMsg(msg: string) {
+    console.log('接受子组件的msg：' + msg)
+}
+````
+
+
+
+
+
+#### 生命周期
+
+![img](https://ss1.bdstatic.com/70cFvXSh_Q1YnxGkpoWK1HF6hhy/it/u=700259853,2243097718&fm=26&gp=0.jpg)
+
+```` jsx
+export default class App extends Component {
+    constructor(){
+        super()
+        console.log('我是第一个')
+    }
+    render() {
+        return (
+            <div>
+                <Child msg='我是你爸爸' age='21' />
+                <Child msg='我是干爸爸' age='21' />
+            </div>
+        )
+    }
+    componentDidMount(){
+        console.log('我是第二个，挂载完毕后执行')
+    }
+    componentDidUpdate(){
+        console.log('我是更新dom后执行')
+    }
+    componentWillUnmount(){
+        console.log('我是销毁时执行')
+    }
+}
+````
+
+#### solt插槽
+
+1.不推荐
+
+```` jsx
+  // 放入三个插槽
+  <NavBar>
+          <Header />
+          <Main />
+          <Footer />
+  </NavBar>
+  
+ // 类中使用 `并不推荐使用该方法`
+ class NavBar extends Component {
+  render() {
+    return (
+      <div>
+        <div>{this.props.children[0]}</div>
+        <div>{this.props.children[1]}</div>
+        <div>{this.props.children[2]}</div>
+      </div>
+    )
+  }
+}
+````
+
+2.
+
+```` jsx
+// 具名插槽，推荐
+ <NavBar leftSlot={<Header />} centerSlot={<Main />} rightSlot={<Footer />} />
+
+//组件内
+class NavBar extends Component {
+  render() {
+    const { leftSolot, centerSlot, rightSlot } = this.props
+    return (
+      <div>
+        <div>{leftSolot}</div>
+        <div>{centerSlot}</div>
+        <div>{rightSlot}</div>
+      </div>
+    )
+  }
+}
+````
+
