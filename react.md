@@ -2,16 +2,37 @@
 
 # React
 
-#### 类组件用法
+#### 改变变量
 
-需要类继承 React.Component
-并且需要constructor中调用super
+##### 需要调用setState
 
-##### 改变变量
+```` jsx
+跟vue中直接改变不一样，需要手动调用  this.setState({msg: 'msg'});
+this.setState({
+      msg: '改变了啊'
+})
+````
 
-需要调用setState
+##### setState是异步的
 
-`跟vue中直接改变不一样，需要手动调用  *this*.setState({msg: 'msg'});
+```` jsx
+this.setState({
+      msg: '改变了啊'
+})
+console.log(this.state.msg) //获取到是之前的数据
+
+// 我们可以在回调函数中获取到更新后的数据，类似于vue中的nextTick
+this.setState({
+      msg: '改变了啊'
+    }, () => {
+      console.log(this.state.msg)
+})
+
+//也可以在更新生命周期函数获取
+componentDidUpdate(prevProps, provState,snapshot){
+    console.log(this.state.msg)
+}
+````
 
 
 
@@ -249,6 +270,255 @@ onMsg(msg: string) {
 }
 ````
 
+##### 父传孙
+
+```` jsx
+// Context 可以让我们无须明确地传遍每一个组件，就能将值深入传递进组件树。
+// 为当前的 theme 创建一个 context（“light”为默认值）。
+const ThemeContext = React.createContext('light')
+
+
+// 无论多深，任何组件都能读取这个值。
+// 进行包裹，我们将 “dark” 作为当前的值传递下去
+<ThemeContext.Provider value="dark">
+          <Child {...this.state} />
+</ThemeContext.Provider>
+````
+
+##### 事件总线BUS
+
+```` jsx
+1.yarn来安装events
+	yarn add @types/events events
+    
+    创建EventEmitter对象：eventBus对象
+    const eventBus = new EventEmitter()
+    
+    发出事件：eventBus.emit("事件名称", 参数列表)
+	EventBus.emit("send", '我是父亲的参数')
+
+    监听事件：eventBus.on("事件名称", 监听函数)
+    EventBus.on('send', (msg) => {
+      console.log('msg')
+      this.setState({msg})
+    })
+
+    移除事件：eventBus.removeListener("事件名称", 监听函数)
+	EventBus.removeAllListeners('send')
+    EventBus.off('send', this.onMsg.bind(this))
+````
+
+#### ref
+
+```` javascript
+获取DOM对象
+
+1.字符串设置 `不推荐`
+<div className="a" ref='dom'>我是Dom哦</div>
+//使用refs获取
+console.log(this.refs.dom)
+
+2.设置为对象 `推荐`
+// 创建ref对象
+this.myRef = createRef()
+//设置ref
+<div className="a" ref={this.myRef}>我是Dom哦</div>
+//获取ref
+this.myRef.current.innerHTML = `<p>我呗改变了</p>`
+
+3.传入一个函数
+// 创建ref对象
+this.myRef = null
+//设置ref
+<div className="a" ref={arg => this.myRef = arg}>我是Dom哦</div>
+//获取ref
+this.myRef.innerHTML = `<p>我呗改变了</p>`
+
+
+4.调用子组件的方法
+// 创建ref对象
+this.myRef = createRef()
+//设置ref
+<Child ref={this.myRef} />
+//调用子组件中的方法
+this.myRef.current.getValue()
+
+````
+
+##### 高级组件
+
+```` jsx
+const User = createContext({
+  nickName: 'zs',
+  age: 15,
+  sex: '男'
+})
+
+
+class Home extends PureComponent {
+  render() {
+    return (
+      <div>
+        <p>Home</p>
+        <p>{this.props.nickName}</p>
+        <p>{this.props.age}</p>
+        <p>{this.props.sex}</p>
+      </div>
+    )
+  }
+}
+
+class About extends PureComponent {
+  render() {
+    return (
+      <div>
+        <p>About</p>
+        <p>{this.props.nickName}</p>
+        <p>{this.props.age}</p>
+        <p>{this.props.sex}</p>
+      </div>
+    )
+  }
+}
+
+// 合并组件
+function mergeCom(Compoent: any) {
+  return (props: any) => {
+    return (
+      <User.Consumer>
+        {
+          value => {
+            return <Compoent  {...value} {...props} />
+          }
+        }
+      </User.Consumer>
+    )
+  }
+}
+
+const HomeMer = mergeCom(Home)
+const AboutMer = mergeCom(About)
+
+class App extends PureComponent {
+  render() {
+    return (
+      <div>
+        父元素
+        <User.Provider value={{ nickName: '程振国', age: 16, sex: '男' }}>
+          <HomeMer nickName='嘎嘎' />
+          <AboutMer />
+        </User.Provider>
+      </div >
+    )
+  }
+}
+
+
+export default App
+````
+
+**例子：登录鉴权**
+
+```` jsx
+<div>
+   <AuthCartPage isLogin={true} />
+</div >
+// 购物车组件
+const AuthCartPage = mergeCom(Cart)
+
+//校验是否需要登录
+function mergeCom(Compoent: any) {
+  return (props: any) => {
+    const { isLogin } = props
+    // 也可以写成网络请求，没有请求完显示Loading状态
+    if (isLogin) {
+      return <Compoent {...props} />
+    } else {
+      return <Login />
+    }
+  }
+}
+
+````
+
+
+
+<div>
+        <AuthCartPage isLogin={true} />
+      </div >
+
+#### 处理表单输入框
+
+```` jsx
+1.创建state对象
+ state: State = {
+    name: '',
+    password: '',
+    vcode: ''
+  }
+2.创建form表单和input
+//绑定 onSubmit提交事件,传递e阻止默认事件
+<form onSubmit={e => this.Login(e)}>
+          <div>
+            <label htmlFor="name">
+              账号：
+            </label>
+        	{* 绑定value和改变事件，state的数据改变，视图跟着变，输入框变化去改变state的数据改变 *}
+            <input type="text" id='name' name='name' value={name} onChange={e => this.handleInput(e)} />
+          </div>
+          <div>
+            <label htmlFor="password">
+              密码：
+            </label>
+            <input type="password" id='password' name='password' value={password} onChange={e => this.handleInput(e)} />
+          </div>
+          <div>
+            <label htmlFor="vcode">
+              验证码：
+            </label>
+            <input type="text" id='vcode' name='vcode' value={vcode} onChange={e => this.handleInput(e)} />
+          </div>
+          <input type='submit' value='登录' />
+</form>
+
+// 表单提交事件
+Login(e: any) {
+    e.preventDefault()
+    console.log(this.state)
+}
+
+// 处理输入框输入事件
+handleInput(e: any) {
+    this.setState({
+      // 可以拿到name和value，动态的变化
+      [e.target.name]: e.target.value
+    })
+}
+
+// 单选框  主要是checked属性
+<label>
+          男：
+          <input
+            type="radio"
+            value="男"
+            name='sex'
+            checked={sex === '男'}
+            onChange={e => this.handleInput(e)}
+          />
+</label>
+
+<label>
+       女：
+       <input
+          type="radio"
+          value="女"
+          name='sex'
+          checked={sex === '女'}
+          onChange={e => this.handleInput(e)}
+        />
+</label>
+````
+
 
 
 
@@ -328,5 +598,190 @@ class NavBar extends Component {
     )
   }
 }
+````
+
+#### createPortal挂载节点
+
+```` jsx
+//某些情况下，我们希望渲染的内容独立于父组件，甚至是独立于当前挂载到的DOM元素中
+//第一个参数（child）是任何可渲染的 React 子元素，例如一个元素，字符串或 fragment
+//第二个参数（container）是一个 DOM 元素
+
+class Modal extends PureComponent {
+  constructor(props: any) {
+    super(props)
+  }
+  render() {
+    return createPortal(
+      this.props.children,
+      document.getElementById('modal')
+    )
+  }
+}
+
+// 插入即可
+<Modal>
+          我是弹窗
+          确认
+</Modal>
+````
+
+#### fragment （类似于VUE的template）
+
+```` jsx
+`fragment不会真正的渲染`
+<Fragment>
+          <p>啊啊啊</p>
+          <p>嘎嘎嘎</p>
+</Fragment>
+````
+
+
+
+#### 防止多次渲染
+
+**1.使用PureComponent替代Component**
+
+```` jsx
+PureComponent只会浅比较,减少多次渲染
+Component和PureComponent有一个不同点
+除了为你提供了一个具有浅比较的shouldComponentUpdate方法，PureComponent和Component基本上完全相同。当props或者state改变时，PureComponent将对props和state进行浅比较。另一方面，Component不会比较当前和下个状态的props和state。因此，每当shouldComponentUpdate被调用时，组件默认的会重新渲染。
+````
+
+**或者使用shouldComponentUpdate钩子**`
+
+```` json
+`该方法有两个参数`
+参数一：nextProps 修改之后，最新的props属性
+参数二：nextState 修改之后，最新的state属性
+
+该方法返回值是一个boolean类型
+返回值为true，那么就需要调用render方法；
+返回值为false，那么久不需要调用render方法；
+默认返回的是true，也就是只要state发生改变，就会调用render方法
+
+````
+
+**2.循环时使用key来提高diff算法的效率**
+
+```` json
+`key的注意事项`
+1.key应该是唯一的；
+2.key不要使用随机数（随机数在下一次render时，会重新生成一个数字）；
+3.使用index作为key，对性能是没有优化的；
+````
+
+**高阶组件mem**
+
+```` jsx
+/*
+React.memo()是一个高阶函数，它与 React.PureComponent类似，但是一个函数组件而非一个类。
+*/
+const App = memo(function App(props) {
+  return (
+    <div>
+      <p>嘎嘎</p>
+    </div>
+  )
+})
+````
+
+#### 其他库的推荐
+
+```` jsx
+1.styled-components
+	用来写css样式的
+2.classNames
+	行内class需要拼接很不方便，推荐的一个css库，类似于vue的class写法
+
+````
+
+#### Vite中使用antd
+
+##### 修改主题色
+
+```` json
+# 安装 antd
+yarn add antd
+# 安装 less
+yarn add -D less
+
+
+````
+
+配置
+
+```` json
+// vite.config.ts
+
+export default defineConfig({
+  css: {
+    preprocessorOptions: {
+      less: {
+        // 支持内联 JavaScript
+        javascriptEnabled: true,
+        // 重写 less 变量，定制样式
+        modifyVars: {
+          '@primary-color': 'red',
+        },
+      },
+    }
+  }
+})
+````
+
+##### 导入样式
+
+```` json
+// App.tsx
+import 'antd/dist/antd.less'
+````
+
+##### 使用 CSS 预处理器
+
+修改 CSS 文件名为 CSS Module 格式即可，无需配置，Vite 默认支持。
+
+```` json
+index.css --> index.module.css
+index.scss --> index.module.scss
+index.less --> index.module.less
+````
+
+##### 全局样式配置
+
+```` json
+// vite.config.ts
+
+export default defineConfig({
+	...
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // 自动导入全局样式
+        additionalData: "@import '@/styles/base.scss';"
+      },
+    }
+  },
+})
+````
+
+##### 路径别名
+
+```` json
+// vite.config.ts
+
+export default defineConfig({
+	...
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, 'src')
+    }
+  },
+})
+
+import Mine from "@/pages/Mine"
+import Avatar from "@/components/Avatar"
+import utils from "@/utils"
+import baseStyle from "@/styles/base.scss"
 ````
 
