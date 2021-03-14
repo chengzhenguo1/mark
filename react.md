@@ -785,3 +785,196 @@ import utils from "@/utils"
 import baseStyle from "@/styles/base.scss"
 ````
 
+
+
+#### React中使用TS
+
+https://juejin.cn/post/6910863689260204039#heading-13
+
+https://github.com/typescript-cheatsheets/react#useful-table-for-types-vs-interfaces
+
+##### 声明UseState
+
+- **const** [user, setUser] = React.useState<string| null>(null);  **初始值是** null 或 string
+- **const** [user, setUser] = React.useState<string>(null);  
+
+##### 函数式组件
+
+利用 `React.FC` 内置类型的话，不光会包含你定义的 `AppProps` 还会自动加上一个 children 类型，以及其他组件上会出现的类型：
+
+```` tsx
+// 等同于
+AppProps & { 
+  children: React.ReactNode 
+  propTypes?: WeakValidationMap<P>;
+  contextTypes?: ValidationMap<any>;
+  defaultProps?: Partial<P>;
+  displayName?: string;
+}
+
+// 使用
+interface AppProps = { message: string };
+
+const App: React.FC<AppProps> = ({ message, children }) => {
+  return (
+    <>
+     {children}
+     <div>{message}</div>
+    </>
+  )
+};
+````
+
+
+
+##### Ref
+
+这个 Hook 在很多时候是没有初始值的，这样可以声明返回对象中 `current` 属性的类型：
+
+```tsx
+const ref2 = useRef<HTMLElement>(null);
+```
+
+以一个按钮场景为例：
+
+```tsx
+function TextInputWithFocusButton() {
+  const inputEl = React.useRef<HTMLInputElement>(null);
+  const onButtonClick = () => {
+    if (inputEl && inputEl.current) {
+      inputEl.current.focus();
+    }
+  };
+  return (
+    <>
+      <input ref={inputEl} type="text" />
+      <button onClick={onButtonClick}>Focus the input</button>
+    </>
+  );
+}
+```
+
+当 `onButtonClick` 事件触发时，可以肯定 `inputEl` 也是有值的，因为组件是同级别渲染的，但是还是依然要做冗余的非空判断。
+
+有一种办法可以绕过去。
+
+```tsx
+const ref1 = useRef<HTMLElement>(null!);
+```
+
+`null!` 这种语法是非空断言，跟在一个值后面表示你断定它是有值的，所以在你使用 `inputEl.current.focus()` 的时候，TS 不会给出报错。
+
+但是这种语法比较危险，需要尽量减少使用。
+
+在绝大部分情况下，`inputEl.current?.focus()` 是个更安全的选择，除非这个值**真的不可能**为空。（比如在使用之前就赋值了）
+
+###### forwardRef 
+
+```` tsx
+type Props = { children: React.ReactNode; type: "submit" | "button" };
+export type Ref = HTMLButtonElement;
+export const FancyButton = React.forwardRef<Ref, Props>((props, ref) => (
+  <button ref={ref} className="MyClassName" type={props.type}>
+    {props.children}
+  </button>
+));
+````
+
+
+
+##### 表单和事件
+
+```` tsx
+type State = {
+  text: string;
+};
+class App extends React.Component<Props, State> {
+  state = {
+    text: "",
+  };
+  // typing on RIGHT hand side of =
+  onChange = (e: React.FormEvent<HTMLInputElement>): void => {
+    this.setState({ text: e.currentTarget.value });
+  };
+  render() {
+    return (
+      <div>
+        <input type="text" value={this.state.text} onChange={this.onChange} />
+      </div>
+    );
+  }
+}
+
+// typing on LEFT hand side of =
+  onChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    this.setState({text: e.currentTarget.value})
+  }
+  
+<form
+    ref={formRef}
+    onSubmit={(e: React.SyntheticEvent) => {
+    e.preventDefault();
+    const target = e.target as typeof e.target & {
+      email: { value: string };
+      password: { value: string };
+    };
+    const email = target.email.value; // typechecks!
+    const password = target.password.value; // typechecks!
+    }}
+>
+  <div>
+    <label>
+      Email:
+      <input type="email" name="email" />
+    </label>
+  </div>
+  <div>
+    <label>
+      Password:
+      <input type="password" name="password" />
+    </label>
+  </div>
+  <div>
+    <input type="submit" value="Log in" />
+  </div>
+</form>
+````
+
+##### 上下文context
+
+```` tsx
+import * as React from "react";
+
+interface AppContextInterface {
+  name: string;
+  author: string;
+  url: string;
+}
+
+const AppCtx = React.createContext<AppContextInterface | null>(null);
+
+// Provider in your app
+
+const sampleAppContext: AppContextInterface = {
+  name: "Using React Context in a Typescript App",
+  author: "thehappybug",
+  url: "http://www.example.com",
+};
+
+export const App = () => (
+  <AppCtx.Provider value={sampleAppContext}>...</AppCtx.Provider>
+);
+
+// Consume in your app
+
+export const PostInfo = () => {
+  const appContext = React.useContext(AppCtx);
+  return (
+    <div>
+      Name: {appContext.name}, Author: {appContext.author}, Url:{" "}
+      {appContext.url}
+    </div>
+  );
+};
+````
+
