@@ -722,6 +722,26 @@ npm install @types/node --save-dev
 1
 ```
 
+#### 捕获键的名称 keyof
+
+`keyof` 操作符能让你捕获一个类型的键。例如，你可以使用它来捕获变量的键名称，在通过使用 `typeof` 来获取类型之后：
+
+```ts
+const colors = {
+  red: 'red',
+  blue: 'blue'
+};
+
+type Colors = keyof typeof colors;
+
+let color: Colors; // color 的类型是 'red' | 'blue'
+color = 'red'; // ok
+color = 'blue'; // ok
+color = 'anythingElse'; // Error
+```
+
+这允许你很容易地拥有像字符串枚举+常量这样的类型，如上例所示。
+
 #### 类型别名
 
 类型别名用来给一个类型起个新名字，常用于联合类型。
