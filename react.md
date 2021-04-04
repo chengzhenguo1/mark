@@ -698,6 +698,8 @@ const App = memo(function App(props) {
 
 #### Vite中使用antd
 
+https://juejin.cn/post/6938671679153373214#heading-6
+
 ##### 修改主题色
 
 ```` json
@@ -709,7 +711,7 @@ yarn add -D less
 
 ````
 
-配置
+**配置**
 
 ```` json
 // vite.config.ts
@@ -729,6 +731,132 @@ export default defineConfig({
   }
 })
 ````
+
+**或者创建一个variables**
+
+```` ts
+yarn add less-vars-to-js
+
+...
+import path from 'path'
+import fs from 'fs'
+import lessToJS from 'less-vars-to-js'
+
+// less-vars-to-js 是将 less 样式转化为 json 键值对的形式
+const themeVariables = lessToJS(
+  fs.readFileSync(path.resolve(__dirname, './config/variables.less'), 'utf8')
+)
+
+...
+css: {
+  preprocessorOptions: {
+    less: {
+      // 支持内联 JavaScript
+      javascriptEnabled: true,
+      // 重写 less 变量，定制样式
+      modifyVars: themeVariables
+    }
+  }
+}
+...
+
+// variables.less
+// 自定义覆盖 =============================================================
+@primary-color: green; // 全局主色
+// 下面你可以各种写一些覆盖的样式，这里就简单覆盖一个主题色的样式，我们改为绿色
+
+
+````
+
+##### 环境变量如何获取
+
+**打包时** 那么我们如何在打包时，在 `vite.config.js` 中拿到环境变量呢？ 首先我们先修改 `package.json` 的 `scripts` 属性，如下所示：
+
+```json
+scripts: {
+  "dev": "vite --mode development",
+  "build:beta": "vite build --mode beta",
+  "build:release": "vite build --mode release",
+  "serve": "vite preview"
+}
+```
+
+`--mode` 后代表的是各个环境对应的环境变量值，这里为什么一定要用 `--mode` 呢？官方定的，后续可以在页面中拿到这个变量值。
+
+我们在 `vite.config.js` 打印如下所示：
+
+```javascript
+console.log('process:::env', process.argv)
+```
+
+重新运行 `npm run dev` 如下所示：
+
+![image.png](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/03332cf0368b4288ab706b7ce9a3a4ff~tplv-k3u1fbpfcp-zoom-1.image)
+
+最后一个参数，便是我们设置好的环境变量。所以我们可以通过如下获取环境变量：
+
+```javascript
+const env = process.argv[process.argv.length - 1]
+```
+
+我们可以在 `vite.config.js` 里配置 `index.html` 内，静态资源的路径前缀。改动如下：
+
+```javascript
+...
+const env = process.argv[process.argv.length - 1]
+const base = config[env]
+...
+export default defineConfig({
+	base: base.cdn
+})
+```
+
+在根目录的 `config` 目录内，添加 `index.js` 文件，添加如下内容：
+
+```javascript
+export default {
+  development: {
+    cdn: './',
+    apiBaseUrl: '/api' // 开发环境接口请求，后用于 proxy 代理配置
+  },
+  beta: {
+    cdn: '//s.xxx.com/vite-react-app/beta', // 测试环境 cdn 路径
+    apiBaseUrl: '//www.beta.xxx.com/v1' // 测试环境接口地址
+  },
+  release: {
+    cdn: '//s.xxx.com/vite-react-app/release', // 正式环境 cdn 路径
+    apiBaseUrl: '//www.xxx.com/v1' // 正式环境接口地址
+  }
+}
+```
+
+我们来打个测试包试试，运行如下指令：
+
+```bash
+npm run build:beta
+```
+
+结果如下所示： ![image.png](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/9b21c20f79584f1b80d8082587439280~tplv-k3u1fbpfcp-zoom-1.image) 同理可得正式环境的鸟样。
+
+**运行时** 那么运行代码的时候，我们如何获取到相应的环境变量呢？答案是 `import.meta.env` 。我们在 `Index/index.jsx` 里打印一下便可知晓：
+
+```javascript
+import React from 'react'
+import { Button } from 'antd'
+
+export default function Index() {
+  console.log('import.meta.env', import.meta.env)
+  return <div>
+    <Button type='primary'>Index</Button>
+  </div>
+}
+
+const serverAddr = import.meta.env.MODE == 'development' ? '123.207.32.32' : '123.207.32.32'
+
+export const SERVER = `http://${serverAddr}:9001`
+```
+
+![image.png](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/d123d15239944a5487087389f25da2c0~tplv-k3u1fbpfcp-zoom-1.image)
 
 ##### 导入样式
 
@@ -773,16 +901,110 @@ export default defineConfig({
 export default defineConfig({
 	...
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, 'src')
+    alias: [
+       { find: /^~/, replacement: '/src' },
+    ],
+  },
+})
+
+同时在tsconfig.js中配置
+
+"baseUrl": ".",
+"paths": {
+      "@/*": ["./src/*"]
+ }
+
+import Mine from "~/pages/Mine"
+````
+
+##### 按需加载
+
+```` ts
+// 安装按需加载插件
+npm i vite-plugin-imp -D
+
+// vite.config.js 中添加以下内容
+import { defineConfig } from 'vite'
+import reactRefresh from '@vitejs/plugin-react-refresh'
+import vitePluginImp from 'vite-plugin-imp'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    reactRefresh(),
+    vitePluginImp({
+      libList: [
+        {
+          libName: "antd",
+          style: (name) => `antd/lib/${name}/style/index.less`,
+        },
+      ],
+    })
+  ],
+  css: {
+    preprocessorOptions: {
+      less: {
+        // 支持内联 JavaScript
+        javascriptEnabled: true,
+      }
     }
   },
 })
 
-import Mine from "@/pages/Mine"
-import Avatar from "@/components/Avatar"
-import utils from "@/utils"
-import baseStyle from "@/styles/base.scss"
+````
+
+##### 完整配置
+
+```` ts
+import { defineConfig } from 'vite'
+import path from 'path'
+import fs from 'fs'
+
+import lessToJS from 'less-vars-to-js'
+import reactRefresh from '@vitejs/plugin-react-refresh'
+import vitePluginImp from 'vite-plugin-imp'
+
+// less 转换成json 格式
+const themeVariables = lessToJS(
+  fs.readFileSync(path.resolve(__dirname, './config/variables.less'), 'utf8')
+)
+
+
+// 获取环境变量
+// const env = process.argv[process.argv.length - 1]
+
+export default defineConfig({
+  resolve: {
+    // 路径别名
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@store': path.resolve(__dirname, './src/store'),
+      '@router': path.resolve(__dirname, './src/router'),
+      '@conponents': path.resolve(__dirname, './src/components')
+    }
+  },
+  plugins: [
+    reactRefresh(),
+    vitePluginImp({
+      // 按需引入
+      libList: [
+        {
+          libName: "antd",
+          style: (name) => `antd/lib/${name}/style/index.less`,
+        },
+      ],
+    })
+  ],
+  css: {
+    preprocessorOptions: {
+      less: {
+        // 支持内联 JavaScript
+        javascriptEnabled: true,
+        modifyVars: themeVariables
+      }
+    }
+  },
+})
 ````
 
 
@@ -976,5 +1198,282 @@ export const PostInfo = () => {
     </div>
   );
 };
+````
+
+#### React中使用Mobx
+
+###### 1.创建一个store主仓库
+
+```` ts
+// sotre/index.ts
+
+//我们创建的user的分仓库
+import UserStore, { User } from './user/user'
+
+const user = new UserStore()
+
+// 定义仓库类型
+export interface StoreType {
+    user: User
+}
+
+
+const stores: StoreType = {
+    user
+}
+
+export default stores
+````
+
+###### 2.在main的ts中引入主仓库
+
+```` ts
+import { Provider } from 'mobx-react'
+import stores from './store/index'
+
+// 需要拿Provider来包裹
+ReactDOM.render(
+  <Provider {...stores}>
+    <App />
+  </Provider>,
+  document.getElementById('root')
+)
+````
+
+###### 3.编写user仓库
+
+```` ts
+// user/user.ts
+import { makeAutoObservable } from 'mobx';
+
+export interface User {
+    name: string
+    password: string
+    userInfo: string
+    loginAction: (payload: { name: string, password: string }) => void
+}
+
+class UserStore implements User {
+    // state
+    name = ''
+    password = ''
+
+    constructor() {
+        // 观察全部数据
+        makeAutoObservable(this)
+    }
+    // getter
+    get userInfo() {
+        return this.name + '' + this.password
+    }
+
+    // action
+    loginAction(payload: { name: string; password: string; }): void {
+        this.name = payload.name
+        this.password = payload.password
+        console.log(this)
+        console.log('登录成功')
+    }
+}
+
+export default UserStore
+````
+
+###### 4.将action的方法抽离
+
+```` ts
+// 创建一个actions的文件
+export default class actions {
+    loginAction(payload: { name: string; password: string; }): void {
+        this.name = payload.name
+        this.password = payload.password
+        console.log(this)
+        console.log('登录成功')
+    }
+}
+
+// 导入 actions 的同时改写user.ts中的方法格式
+import actions from './actios'
+
+loginAction(payload: { name: string, password: string }) { }
+
+// 同时实现 actios
+class UserStore implements User, actions
+
+// 创建一个mixin混入函数
+function applyMixins(derivedCtor: any, baseCtors: any[]) {
+    baseCtors.forEach(baseCtor => {
+        Object.getOwnPropertyNames(baseCtor.prototype).forEach(name => {
+            derivedCtor.prototype[name] = baseCtor.prototype[name]
+        })
+    })
+}
+
+// 将actions 放到 user类中
+applyMixins(UserStore, [actions])
+````
+
+###### 5.在页面中使用store
+
+```` tsx
+import React from 'react'
+import { inject, observer } from 'mobx-react'
+import { StoreType } from './store/index'
+
+function App({ user }: StoreType) {
+
+  const login = () => {
+     // 使用actions
+    user.loginAction({ name: 'zs', password: '123456789' })
+  }
+
+  return (
+    <div>
+      <div>
+          {* 使用state数据 *}
+        <p>UserInfo:{user.name}</p>
+        <p>{user.password}</p>
+        <p>getter: {user.userInfo}</p>
+      </div>
+      <div>
+        <button onClick={login}>登录</button>
+      </div>
+    </div>
+  )
+}
+
+export default inject('user')(observer(App))
+````
+
+##### 总结
+
+```` ts
+// actions
+export interface UserActions {
+    loginAction: (this: { name: string, password: string }, payload: { name: string, password: string }) => void
+}
+
+
+export default class actions implements UserActions {
+    // 声明this的属性
+    loginAction(this: { name: string, password: string }, payload: { name: string, password: string }): void {
+        this.name = payload.name
+        this.password = payload.password
+        console.log(this)
+        console.log('登录成功')
+    }
+}
+
+// user/index
+import { makeAutoObservable } from 'mobx'
+
+import { applyMixins } from '@/utils/mixins'
+
+import actions, { UserActions } from './actions'
+
+export interface User {
+    name: string
+    password: string
+    userInfo: string
+}
+
+class UserStore implements User, UserActions {
+    // state
+    name = ''
+    password = ''
+
+    constructor() {
+        // 观察全部数据
+        makeAutoObservable(this)
+    }
+    // getter
+    get userInfo() {
+        return this.name + '' + this.password
+    }
+
+    // action
+    loginAction(this: { name: string, password: string }, payload: { name: string; password: string; }): void { }
+}
+
+
+applyMixins(UserStore, [actions])
+
+export default UserStore
+
+
+// main.tsx
+import React from 'react'
+import ReactDOM from 'react-dom'
+import { Provider } from 'mobx-react'
+
+import stores from './store/index'
+import './index.css'
+
+import App from './App'
+
+ReactDOM.render(
+  <Provider {...stores}>
+    <App />
+  </Provider>,
+  document.getElementById('root')
+)
+
+````
+
+
+
+###### 工具函数
+
+```` ts
+function applyMixins(derivedCtor: any, baseCtors: any[]) {
+    baseCtors.forEach(baseCtor => {
+        Object.getOwnPropertyNames(baseCtor.prototype).forEach(name => {
+            derivedCtor.prototype[name] = baseCtor.prototype[name]
+        })
+    })
+}
+````
+
+###### 解决this指向报错问题
+
+```` tsx
+export type UserState = {
+    name: string
+    password: string
+}
+
+export interface User {
+    state: UserState
+    userInfo: string
+    loginAction: (payload: { name: string, password: string }) => void
+}
+
+
+
+import { User, UserState } from "./user"
+
+export default class actions {
+    // 声明this的属性
+    loginAction(this: User, payload: UserState): void {
+        this.state.name = payload.name
+        this.state.password = payload.password
+        console.log(this)
+        console.log('登录成功')
+    }
+}
+
+````
+
+### hooks
+
+#### 在hook中使用获取路由的方法
+
+```` jsx
+需要导入这三个方法
+import { useLocation,useHistory,useParams } from 'react-router-dom'
+
+执行方法获取参数即可
+const { pathname } = useLocation()
+console.log(pathname)
 ````
 
