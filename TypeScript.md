@@ -1040,3 +1040,695 @@ import type Foo, { Bar, Baz } from "some-module";
 - `remove`，这是现在的行为 —— 丢弃这些导入语句。这仍然是默认行为，没有破坏性的更改
 - `preserve`，它将会保留所有的语句，即使是从来没有被使用。它可以保留副作用
 - `error`，它将会保留所有的导入（与 `preserve` 选项相同）语句，但是当一个值的导入仅仅用于类型时将会抛出错误。如果你想确保没有意外导入任何值，这会是有用的，但是对于副作用，你仍然需要添加额外的导入语法。
+
+## react中使用ts
+
+### props
+
+```tsx
+interface AppProps = {
+  message: string;
+};
+
+// 使用React.FC会带一个chidren字段
+const App: React.FC<AppProps> = ({ message,children }) => <div>{message}</div>;
+```
+
+### Hooks
+
+#### useState
+
+```tsx
+// 使用初始值会默认判断该参数的类型
+const [val, toggle] = React.useState(false);
+
+// 然而，许多state都是用空的默认值初始化的，您可能想知道如何提供类型。显式声明类型，并使用联合类型
+const [user, setUser] = React.useState<IUser | null>(null);
+
+```
+
+#### useReducer
+
+```tsx
+// 初始化数据
+const initialState = { count: 0 };
+// 需要声明payload的数据类型
+type ACTIONTYPE =
+  | { type: "increment"; payload: number }
+  | { type: "decrement"; payload: string };
+
+function reducer(state: typeof initialState, action: ACTIONTYPE) {
+  switch (action.type) {
+    case "increment":
+      return { count: state.count + action.payload };
+    case "decrement":
+      return { count: state.count - Number(action.payload) };
+    default:
+      throw new Error();
+  }
+}
+
+function Counter() {
+  const [state, dispatch] = React.useReducer(reducer, initialState);
+  return (
+    <>
+      Count: {state.count}
+      <button onClick={() => dispatch({ type: "decrement", payload: "5" })}>
+        -
+      </button>tsx
+      <button onClick={() => dispatch({ type: "increment", payload: 5 })}>
+        +
+      </button>
+    </>
+  );
+}
+```
+
+##### **Reducer**在redux中使用
+
+```` tsx
+import { Reducer } from 'redux';
+
+export function reducer: Reducer<AppState, Action>() {}
+````
+
+#### useEffect
+
+当使用useEffect时，注意不要返回函数或未定义以外的任何东西，否则TypeScript和React都会对你报错。当使用箭头函数时，这可能会很微妙:
+
+```tsx
+function DelayedEffect(props: { timerMs: number }) {
+  const { timerMs } = props;
+
+  useEffect(
+    () =>
+      setTimeout(() => {
+        /* do stuff */
+      }, timerMs),
+    [timerMs]
+  );
+  // 坏例子!setTimeout隐式返回一个数字
+  // 因为arrow函数体没有被花括号括起来
+  return null;
+}
+
+
+function DelayedEffect(props: { timerMs: number }) {
+  const { timerMs } = props;
+
+  useEffect(() => {
+    setTimeout(() => {
+      /* do stuff */
+    }, timerMs);
+  }, [timerMs]);
+  // 更好;使用void关键字确保返回undefined
+  return null;
+}
+
+```
+
+#### UseRef
+
+当使用useRef创建没有初始值的ref容器时，有两个选项:
+
+```tsx
+const ref1 = useRef<HTMLElement>(null!);
+const ref2 = useRef<HTMLElement>(null);
+const ref3 = useRef<HTMLElement | null>(null);
+```
+
+```tsx
+function TextInputWithFocusButton() {
+  // 用null初始化，但是告诉TypeScript我们正在寻找一个HTMLInputElement
+  const inputEl = React.useRef<HTMLInputElement>(null);
+  const onButtonClick = () => {
+    // 严格的空值检查需要我们检查输入值和当前值是否存在.
+    // 一旦current存在，它的类型是HTMLInputElement
+    // 可以使用focus方法! ✅
+    if (inputEl && inputEl.current) {
+      inputEl.current.focus();
+    }
+  };
+  return (
+    <>
+      {/* 此外，inputEl只能用于输入元素. Yay! */}
+      <input ref={inputEl} type="text" />
+      <button onClick={onButtonClick}>Focus the input</button>
+    </>
+  );
+}
+```
+
+#### useImperativeHandle
+
+```tsx
+type ListProps<ItemType> = {
+  items: ItemType[];
+  innerRef?: React.Ref<{ scrollToItem(item: ItemType): void }>;
+};
+
+function List<ItemType>(props: ListProps<ItemType>) {
+  useImperativeHandle(props.innerRef, () => ({
+    scrollToItem() {},
+  }));
+  return null;
+}
+```
+
+#### 自定义Hooks
+
+如果你在自定义钩子中返回一个数组，你需要避免类型推断，因为TypeScript会推断出一个联合类型(当你在数组的每个位置都需要不同类型时)。相反，使用TS 3.4 const断言:
+
+```tsx
+export function useLoading() {
+  const [isLoading, setState] = React.useState(false);
+  const load = (aPromise: Promise<any>) => {
+    setState(true);
+    return aPromise.finally(() => setState(false));
+  };
+  return [isLoading, load] as const; // 推断出 [boolean, typeof load] 而不是 (boolean | typeof load)[]
+}
+```
+
+这样，当你进行解构时，你实际上会根据解构位置得到正确的类型。
+
+
+
+如果你在使用const断言时遇到麻烦，你也可以断言或定义函数的返回类型:
+
+```tsx
+export function useLoading() {
+  const [isLoading, setState] = React.useState(false);
+  const load = (aPromise: Promise<any>) => {
+    setState(true);
+    return aPromise.finally(() => setState(false));
+  };
+  return [isLoading, load] as [
+    boolean,
+    (aPromise: Promise<any>) => Promise<any>
+  ];
+}
+```
+
+如果你写了很多自定义钩子，那么一个自动为元组类型的辅助函数也会很有帮助:
+
+```tsx
+function tuplify<T extends any[]>(...elements: T) {
+  return elements;
+}
+
+function useArray() {
+  const numberValue = useRef(3).current;
+  const functionValue = useRef(() => {}).current;
+  return [numberValue, functionValue]; // type is (number | (() => void))[]
+}
+
+function useTuple() {
+  const numberValue = useRef(3).current;
+  const functionValue = useRef(() => {}).current;
+  return tuplify(numberValue, functionValue); // type is [number, () => void]
+}
+```
+
+但是，请注意，React团队建议，返回两个以上值的自定义钩子应该使用适当的对象，而不是元组。
+
+### 类组件
+
+在typescript中，`React.Component`是一种通用类型，因此您希望为它提供（可选）prop和state参数
+
+```tsx
+
+type MyProps = {
+  // 用 `interface` 也是可以的
+  message: string;
+};
+
+type MyState = {
+  count: number; // 像这样
+};
+
+class App extends React.Component<MyProps, MyState> {
+  state: MyState = {
+    // 可选的第二个注释，用于更好的类型推断
+    count: 0,
+  };
+  render() {
+    return (
+      <div>
+        {this.props.message} {this.state.count}
+      </div>
+    );
+  }
+}
+```
+
+不要忘记您可以导出/导入/扩展这些类型/接口以便重用。
+
+#### **类方法:**
+
+**像普通方法那样做，但是记住函数的任何参数也需要typed:**
+
+```tsx
+class App extends React.Component<{ message: string }, { count: number }> {
+  state = { count: 0 };
+  render() {
+    return (
+      <div onClick={() => this.increment(1)}>
+        {this.props.message} {this.state.count}
+      </div>
+    );
+  }
+  increment = (amt: number) => {
+    // 像这样
+    this.setState((state) => ({
+      count: state.count + amt,
+    }));
+  };
+}
+```
+
+#### **类属性:**
+
+**如果你需要声明类属性供以后使用，只需要像state一样声明它，但不需要赋值:**
+
+```tsx
+class App extends React.Component<{
+  message: string;
+}> {
+  pointer: number; // like this
+  componentDidMount() {
+    this.pointer = 3;
+  }
+  render() {
+    return (
+      <div>
+        {this.props.message} and {this.pointer}
+      </div>
+    );
+  }
+}
+```
+
+#### **您可能不需要defaultProps**（默认值）
+
+函数组件:
+
+```tsx
+type GreetProps = { age?: number };
+
+const Greet = ({ age = 21 }: GreetProps) => // etc
+```
+
+类组件:
+
+```tsx
+type GreetProps = {
+  age?: number;
+};
+
+class Greet extends React.Component<GreetProps> {
+  render() {
+    const { age = 21 } = this.props;
+  }
+}
+
+let el = <Greet age={3} />;
+```
+
+#### Typing `defaultProps`
+
+```tsx
+type GreetProps = { age: number } & typeof defaultProps;
+const defaultProps = {
+  age: 21,
+};
+
+const Greet = (props: GreetProps) => {
+  // etc
+};
+Greet.defaultProps = defaultProps;
+
+//对于类组件，有两种方法可以做到这一点(包括使用Pick实用工具类型)，但建议“反转”props的定义:
+type GreetProps = typeof Greet.defaultProps & {
+  age: number;
+};
+
+class Greet extends React.Component<GreetProps> {
+  static defaultProps = {
+    age: 21,
+  };
+  /*...*/
+}
+
+let el = <Greet age={3} />;
+```
+
+### 基本prop类型示例
+
+你可能会在React+TypeScript应用中使用的TypeScript类型列表:
+
+```typescript
+type AppProps = {
+  message: string;
+  count: number;
+  disabled: boolean;
+  /** 类型数组! */
+  names: string[];
+  /** 字符串字面值指定精确的字符串值，并使用union类型将它们连接在一起 */
+  status: "waiting" | "success";
+  /** 任何对象，只要你不使用它的属性(不常见但作为占位符很有用)) */
+  obj: object;
+  obj2: {}; // 和object几乎一样
+  /** 具有任意数量属性的对象(首选) */
+  obj3: {
+    id: string;
+    title: string;
+  };
+  /** 数组的对象!(普通) */
+  objArr: {
+    id: string;
+    title: string;
+  }[];
+  /** 具有相同类型的任意数量属性的dict对象 */
+  dict1: {
+    [key: string]: MyTypeHere;
+  };
+  dict2: Record<string, MyTypeHere>; // 相当于dict1
+  /** 任何函数，只要你不调用它(不推荐)) */
+  onSomething: Function;
+  /** 不接受或不返回任何东西的函数(非常常见) */
+  onClick: () => void;
+  /** 带有命名的函数(非常常见) */
+  onChange: (id: number) => void;
+  /** 接受事件的替代函数类型语法(非常常见)*/
+  onClick(event: React.MouseEvent<HTMLButtonElement>): void;
+  /** 可选的(非常常见!) */
+  optional?: OptionalType;
+};
+```
+
+### React 相关类型
+
+```` typescript
+export declare interface AppProps {
+  children1: JSX.Element; // ❌ 不推荐 没有考虑数组
+  children2: JSX.Element | JSX.Element[]; // ❌ 不推荐 没有考虑字符串 children
+  children4: React.ReactChild[]; // 稍微好点 但是没考虑 null
+  children: React.ReactNode; // ✅ 包含所有 children 情况
+  functionChildren: (name: string) => React.ReactNode; // ✅ 返回 React 节点的函数
+  style?: React.CSSProperties; // ✅ 推荐 在内联 style 时使用
+  // ✅ 推荐原生 button 标签自带的所有 props 类型
+  // 也可以在泛型的位置传入组件 提取组件的 Props 类型
+  props: React.ComponentProps<"button">;
+  // ✅ 推荐 利用上一步的做法 再进一步的提取出原生的 onClick 函数类型 
+  // 此时函数的第一个参数会自动推断为 React 的点击事件类型
+  onClickButton：React.ComponentProps<"button">["onClick"]
+}
+
+````
+
+### Forms and Events
+
+如果性能不是问题(通常不是!)，内联是最简单的，因为你可以使用类型推断和上下文类型:
+
+```tsx
+const el = (
+  <button
+    onClick={(event) => {
+      /* event will be correctly typed automatically! */
+    }}
+  />
+);
+```
+
+但是，如果需要单独定义事件处理程序，IDE工具在这里真的很有用，因为@type定义附带了丰富的类型。键入你想要的，通常自动完成会帮助你。下面是一个表单事件的onChange:
+
+```tsx
+type State = {
+  text: string;
+};
+class App extends React.Component<Props, State> {
+  state = {
+    text: "",
+  };
+
+  // typing on RIGHT hand side of =
+  onChange = (e: React.FormEvent<HTMLInputElement>): void => {
+    this.setState({ text: e.currentTarget.value });
+  };
+  render() {
+    return (
+      <div>
+        <input type="text" value={this.state.text} onChange={this.onChange} />
+      </div>
+    );
+  }
+}
+
+```
+
+```tsx
+<form
+  ref={formRef}
+  onSubmit={(e: React.SyntheticEvent) => {
+    e.preventDefault();
+    const target = e.target as typeof e.target & {
+      email: { value: string };
+      password: { value: string };
+    };
+    const email = target.email.value; // typechecks!
+    const password = target.password.value; // typechecks!
+    // etc...
+  }}
+>
+  <div>
+    <label>
+      Email:
+      <input type="email" name="email" />
+    </label>
+  </div>
+  <div>
+    <label>
+      Password:
+      <input type="password" name="password" />
+    </label>
+  </div>
+  <div>
+    <input type="submit" value="Log in" />
+  </div>
+</form>
+```
+
+## Tip
+
+Union类型很容易解决这些类型问题:
+
+```tsx
+class App extends React.Component<
+  {},
+  {
+    count: number | null; // like this
+  }
+> {
+  state = {
+    count: null,
+  };
+  render() {
+    return <div onClick={() => this.increment(1)}>{this.state.count}</div>;
+  }
+  increment = (amt: number) => {
+    this.setState((state) => ({
+      count: (state.count || 0) + amt,
+    }));
+  };
+}
+```
+
+### 类型保护:（属于User|Person）
+
+有时Union 类型解决了一个区域的问题，但却创建了另一个下游区域。如果A和B都是对象类型，那么| B就不是“要么A要么B”，而是“A或B，或者同时两者”，如果你认为它是前者，这就会引起一些混淆。学习如何编写检查、保护和断言(也请参阅下面的条件呈现一节)。例如:
+
+```tsx
+interface Admin {
+  role: string;
+}
+interface User {
+  email: string;
+}
+
+// Method 1: 用 `in` 该值
+function redirect(user: Admin | User) {
+  if ("role" in user) {
+    routeToAdminPage(user.role);
+  } else {
+    routeToHomePage(user.email);
+  }
+}
+
+// 方法2:自定义类型守卫，在较老的TS版本或“在”不够的地方做同样的事情
+function isAdmin(user: Admin | User): user is Admin {
+  return (user as any).role !== undefined;
+}
+```
+
+方法2也被称为用户定义的类型保护，对于可读的代码来说非常方便。这就是TS本身如何使用typeof和instanceof来改进类型。
+
+### 可选的类型
+
+如果一个组件有一个可选的道具，添加一个问号并在解构过程中进行赋值(或者使用defaultProps)。
+
+```tsx
+class MyComponent extends React.Component<{
+  message?: string; // like this
+}> {
+  render() {
+    const { message = "default" } = this.props;
+    return <div>{message}</div>;
+  }
+}
+```
+
+你也可以用a !去断言某些东西是没有定义的，但这是不被鼓励的。
+
+### 枚举类型
+
+我们建议尽量避免使用枚举。
+
+枚举有一些文档化的问题(TS团队同意)。枚举的另一种更简单的替代方法是声明一个字符串字面值的union类型:
+
+```typescript
+export declare type Position = "left" | "right" | "top" | "bottom";
+```
+
+如果你必须使用枚举，请记住，TypeScript中的枚举默认为numbers。你通常会想把它们作为字符串来使用:
+
+```tsx
+export enum ButtonSizes {
+  default = "default",
+  small = "small",
+  large = "large",
+}
+
+// usage
+export const PrimaryButton = (
+  props: Props & React.HTMLProps<HTMLButtonElement>
+) => <Button size={ButtonSizes.default} {...props} />;
+```
+
+### 类型的断言
+
+有时候，你比TypeScript更清楚，你使用的类型比它想象的要懂，或者union类型需要断言到一个更特定的类型，以便与其他api一起工作，所以assert要使用as关键字。这告诉编译器您比它更了解。
+
+```tsx
+class MyComponent extends React.Component<{
+  message: string;
+}> {
+  render() {
+    const { message } = this.props;
+    return (
+      <Component2 message={message as SpecialMessageType}>{message}</Component2>
+    );
+  }
+}
+```
+
+### 使用的类型
+
+依靠TypeScript的类型推断是非常棒的…直到您意识到您需要一个被推断的类型，并且必须返回并显式声明类型/接口，以便您可以导出它们以供重用。
+
+幸运的是，有了typeof，您就不必这样做了。只要在任何值上使用它:
+
+```` tsx
+const [state, setState] = React.useState({
+  foo: 1,
+  bar: 2,
+}); //state的类型被推断为{foo: number, bar: number}
+
+const someMethod = (obj: typeof state) => {
+  // 获取状态类型，即使它是推断的
+  // 一些使用obj的代码
+  setState(obj); // this works
+};
+````
+
+### 使用部分类型
+
+```tsx
+const [state, setState] = React.useState({
+  foo: 1,
+  bar: 2,
+});
+
+// 注意:在React.useState中不鼓励stale state的合并
+// 我们正在演示如何使用Partial
+const partialStateUpdate = (obj: Partial<typeof state>) =>
+  setState({ ...state, ...obj });
+
+// later on...
+partialStateUpdate({ foo: 2 }); // this works
+```
+
+### 我需要的类型没有导出!
+
+- 这可能会很烦人，但这里有一些方法来获取类型!
+
+  -抓取组件的道具类型:使用“React”。ComponentProps '和' typeof '，并且可以省略任何重叠类型
+
+```tsx
+import { Button } from "library"; // 但不输出ButtonProps!
+type ButtonProps = React.ComponentProps<typeof Button>; // 没问题!用自己的!
+type AlertButtonProps = Omit<ButtonProps, "onClick">; // 修改
+const AlertButton: React.FC<AlertButtonProps> = (props) => (
+  <Button onClick={() => alert("hello")} {...props} />
+);
+```
+
+你也可以使用ComponentPropsWithoutRef(而不是ComponentProps)和ComponentPropsWithRef(如果你的组件专门转发refs)
+
+- 获取函数的返回类型:使用' ReturnType ':
+
+```tsx
+// 在某个库中，返回类型{baz: number}是推断的，但不是导出的
+function foo(bar: string) {
+  return { baz: 1 };
+}
+
+//  在你的应用程序中，如果你需要{baz: number}
+type FooReturn = ReturnType<typeof foo>; // { baz: number }
+```
+
+事实上，你几乎可以获取任何公开的信息:
+
+```tsx
+function foo() {
+  return {
+    a: 1,
+    b: 2,
+    subInstArr: [
+      {
+        c: 3,
+        d: 4,
+      },
+    ],
+  };
+}
+
+// 获取函数的返回值类型
+type InstType = ReturnType<typeof foo>;
+type SubInstArr = InstType["subInstArr"];
+type SubIsntType = SubInstArr[0];
+
+let baz: SubIsntType = {
+  c: 5,
+  d: 6, // type checks ok!
+};
+
+//你可以只写一行代码，
+//但请确保它是可向前读的
+//你可以通过从左到右的阅读来理解它。
+type SubIsntType2 = ReturnType<typeof foo>["subInstArr"][0];
+let baz2: SubIsntType2 = {
+  c: 5,
+  d: 6, // type checks ok!
+};
+```
