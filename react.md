@@ -686,6 +686,17 @@ const App = memo(function App(props) {
 })
 ````
 
+#### 使用svg的方法
+
+```` tsx
+import {ReactComponent as SotfLogo} from 'assets/sotfware-logo.svg'
+
+//直接当组件使用即可
+<SotfLogo color='red' width='10rem' />
+````
+
+
+
 #### 其他库的推荐
 
 ```` jsx
@@ -1005,6 +1016,16 @@ export default defineConfig({
     }
   },
 })
+````
+
+##### Tip
+
+###### antd的table的类型扩展
+
+```` typescript
+interface ListProps extends TableProps<project>{
+    users: User[]
+}
 ````
 
 

@@ -121,7 +121,6 @@ interface SquareConfig {
     width?: number;
     [propName: string]: any; // 表示可以有任意数量和类型的属性
 }
-12345
 ```
 
 三：将对象赋值给一个变量，再传入，跳过属性检查
@@ -130,6 +129,20 @@ interface SquareConfig {
 let squareOptions = { colour: "red", width: 100 };
 let mySquare = createSquare(squareOptions);
 ```
+
+#### 接口使用自身的类型
+
+```` typescript
+interface UserParams {
+	user: User[]
+	param: {
+		name: string
+		age: string
+	}
+	// 使用自身param类型
+	setParam: (param: UserParams['parsm']) => void
+}
+````
 
 #### 函数类型
 
@@ -169,7 +182,6 @@ interface ReadonlyStringArray {
 }
 let myArray: ReadonlyStringArray = ["Alice", "Bob"];
 myArray[2] = "Mallory"; // error!
-12345
 ```
 
 #### 类类型
@@ -875,6 +887,111 @@ handleEvent(document.getElementById('world'), 'dblclick'); // 报错，event 不
 ```
 
 **注意：** 类型别名与字符串字面量类型都是使用 type 进行定义。
+
+## 高级类型
+
+lib 库中的五个高级类型
+**以下所有例子皆以 person 为例**
+
+```typescript
+interface Person {
+    name: string;
+    age?: number;
+}
+```
+
+### Partial(可选)
+
+源码:
+
+```typescript
+type Partial<T> = {
+    [P in keyof T]?: T[P];
+};
+```
+
+实例:
+
+```typescript
+type person2 = Partial<Person>;
+// 将参数都变为可选
+// person2 === {name?: string; age?: number}
+```
+
+### Required(必选)
+
+源码:
+
+```typescript
+type Required<T> = {
+    [P in keyof T]-?: T[P];
+};
+```
+
+实例:
+
+```typescript
+type person3 = Required<Person>;
+// 将参数都变为必选
+// person3 === {name: string; age: number}
+```
+
+### Readonly（只读）
+
+源码:
+
+```typescript
+type Readonly<T> = {
+    readonly [P in keyof T]: T[P];
+};
+```
+
+实例:
+
+```typescript
+type person4 = Readonly<Person>;
+// 将参数变为只读
+// person4 === {
+//        readonly name: string;
+//        readonly age?: number;
+//  }
+```
+
+### Pick（选择）
+
+源码:
+
+```typescript
+type Pick<T, K extends keyof T> = {
+    [P in K]: T[P];
+};
+```
+
+实例:
+
+```typescript
+type person5 = Pick<Person, "name">;
+// 只要name属性
+// person5 === {name: string}
+```
+
+### Record
+
+源码:
+
+```typescript
+type Record<K extends keyof any, T> = {
+    [P in K]: T;
+};
+```
+
+实例:
+
+```typescript
+type person6 = Record<'name' | 'age', string>
+// 以 typeof 格式快速创建一个类型，此类型包含一组指定的属性且都是必填。
+// person6 === {name: string; age: string}
+```
 
 ## 如果对象实现了某个接口，我怎么在运行时检查？
 
@@ -1732,3 +1849,20 @@ let baz2: SubIsntType2 = {
   d: 6, // type checks ok!
 };
 ```
+
+### 对象进行结构赋值
+
+```` typescript
+export const cleanObject = (object: {[key: string]: unknown}=>{
+    ...{object}
+})
+````
+
+### 箭头函数使用泛型
+
+```` typescript
+const test = <V>(value: V) => {
+    ....
+}
+````
+
