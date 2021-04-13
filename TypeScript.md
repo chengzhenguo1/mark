@@ -1661,6 +1661,15 @@ class App extends React.Component<
 }
 ```
 
+### admin或者user共存如何声明
+
+```` typescript
+('admin' | 'user')[]  
+结果可为['admin'] ['user'] ['admin','user']
+````
+
+
+
 ### 类型保护:（属于User|Person）
 
 有时Union 类型解决了一个区域的问题，但却创建了另一个下游区域。如果A和B都是对象类型，那么| B就不是“要么A要么B”，而是“A或B，或者同时两者”，如果你认为它是前者，这就会引起一些混淆。学习如何编写检查、保护和断言(也请参阅下面的条件呈现一节)。例如:

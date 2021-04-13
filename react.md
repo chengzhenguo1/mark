@@ -711,6 +711,31 @@ import {ReactComponent as SotfLogo} from 'assets/sotfware-logo.svg'
 
 https://juejin.cn/post/6938671679153373214#heading-6
 
+##### 添加eslint-hooks
+
+```` json
+# yarn 
+yarn add eslint-plugin-react-hooks --dev
+
+# .eslintrc.js中配置
+"extends": [
+    // ...
+    "plugin:react-hooks/recommended"
+ ]
+OR
+{
+  "plugins": [
+    // ...
+    "react-hooks"
+  ],
+  "rules": {
+    // ...
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}
+````
+
 ##### 修改主题色
 
 ```` json
@@ -718,8 +743,6 @@ https://juejin.cn/post/6938671679153373214#heading-6
 yarn add antd
 # 安装 less
 yarn add -D less
-
-
 ````
 
 **配置**
