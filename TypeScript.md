@@ -293,7 +293,6 @@ employee.fullName = "Bob Smith";
 if (employee.fullName) {
     alert(employee.fullName);
 }
-123456789101112131415161718192021
 ```
 
 **注意：** 只带有`get`不带有 `set`的存取器自动被推断为 `readonly`

@@ -1051,6 +1051,16 @@ interface ListProps extends TableProps<project>{
 }
 ````
 
+###### antd菜单栏展开解析
+
+```` typescript
+# /announcement/list/a  解析成 [/announcement,/announcement/list,/announcement/list/a]
+export const pathToList = (path: string): string[] => {
+    const pathList = path.split('/').filter((item) => item)
+    return pathList.map((item, index) => `/${pathList.slice(0, index + 1).join('/')}`)
+}
+````
+
 
 
 #### React中使用TS
