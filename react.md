@@ -70,6 +70,10 @@ arrList: [7,8,1,2,4,5,7,3,6,6]
  {
       arrList.slice(0, 4).map(e =><li> {e} </li>)
  }
+                              
+ {/* 指定for次数 */}
+[1,2,3,4].map((item,index)=>{return arr.slice(index*4,(index + 1)*4) })
+ 结果 [1,2,3,4] [5,6,7,8] [9,10,11,12] .....
 ````
 
 #### 绑定事件
@@ -343,6 +347,7 @@ this.myRef = createRef()
 //调用子组件中的方法
 this.myRef.current.getValue()
 
+
 ````
 
 ##### 高级组件
@@ -598,6 +603,11 @@ class NavBar extends Component {
     )
   }
 }
+
+
+# Tip
+给一个组件设置 ref 然后插入到其他组件中
+使用children可访问ref属性，进行判断
 ````
 
 #### createPortal挂载节点
@@ -704,7 +714,6 @@ import {ReactComponent as SotfLogo} from 'assets/sotfware-logo.svg'
 	用来写css样式的
 2.classNames
 	行内class需要拼接很不方便，推荐的一个css库，类似于vue的class写法
-
 ````
 
 #### Vite中使用antd
@@ -1529,5 +1538,202 @@ import { useLocation,useHistory,useParams } from 'react-router-dom'
 执行方法获取参数即可
 const { pathname } = useLocation()
 console.log(pathname)
+````
+
+### Redux
+
+#### 创建redux
+
+```` typescript
+# 下载依赖
+redux   redux-thunk   redux-logger react-redux
+# 创建一个sotre/index.ts
+
+import {
+ createStore, Reducer, combineReducers, Middleware, compose, applyMiddleware,
+} from 'redux'
+import reduxThunk from 'redux-thunk'
+import reduxLogger from 'redux-logger'
+import { IAction, IStoreState } from './type'
+import userReducer from './module/user'
+import appReducer from './module/app'
+
+// reducer整合store和action
+const reducers: Reducer<IStoreState, IAction<any>> = combineReducers<IStoreState>({
+    user: userReducer,
+})
+
+// 使用中间件
+const middleware: Middleware[] = [reduxThunk]
+
+// 判断是否是生产环境
+if (process.env.NODE_ENV === 'development') {
+    middleware.push(reduxLogger)
+}
+
+// 创建store，整合reducer,且添加浏览器dev插件
+function createMyStore() {
+    const store = window.__REDUX_DEVTOOLS_EXTENSION__
+    ? createStore(
+        reducers,
+        compose(applyMiddleware(...middleware), window.__REDUX_DEVTOOLS_EXTENSION__({})),
+      )
+    : createStore(reducers, applyMiddleware(...middleware))
+
+  return store
+}
+
+const store = createMyStore()
+
+// 导出
+export default store
+````
+
+#### 声明type类型
+
+```` typescript
+import { AppState } from './module/app';
+import { UserState } from './module/user'
+
+export interface IStoreState{
+    user: UserState
+}
+
+export interface IAction<T> {
+    type: string
+    payload: T
+}
+
+````
+
+#### 创建module/user.ts
+
+```` typescript
+import { Reducer } from 'redux'
+import {
+ getRole, getToken, localSetUserInfo, localRemoveUserInfo, getUser, 
+} from '@src/utils/auth'
+import { Roles } from '@src/router/type'
+import { IAction } from '../type'
+
+// 声明user的state类型
+export interface UserState {
+    username: string
+    token: string
+    role: Roles 
+}
+
+// 初始化state的值
+const defaultUser: UserState = {
+    username: getUser(),
+    token: getToken(),
+    role: getRole() as Roles,
+}
+
+// action的type
+const SET_USER_INFO = 'SET_USER_INFO'
+const SET_USER_LOGOUT = 'SET_USER_LOGOUT'
+
+// action，需要导出在页面中使用, payload就是传进来的属性值
+export const setUserInfo: (user: UserState) => IAction<UserState> = (user) => ({
+    type: SET_USER_INFO,
+    payload: user,
+})
+
+export const logout: ()=> IAction<null> = () => ({
+    type: SET_USER_LOGOUT,
+    payload: null,
+})
+
+// reducer整合action和state，初始化state
+const userReducer: Reducer<UserState, IAction<any>> = (state = defaultUser, action: IAction<any>) => {
+    const { type, payload } = action
+    // 判断action的类型，来进行响应的数据处理
+    switch (type) {
+        case SET_USER_INFO:
+            localSetUserInfo(payload)
+            return {
+                ...payload,
+            }
+        case SET_USER_LOGOUT:
+            localRemoveUserInfo()
+            return {
+                ...defaultUser,
+            }
+        default:
+            return state
+    }
+}
+
+// 导出reducer
+export default userReducer
+````
+
+#### 在组件中使用方式
+
+```` typescript
+# 需要导入connect进行连接组件
+import React, { memo, useCallback } from 'react'
+# 导入connect
+import { connect } from 'react-redux'
+import { useHistory } from 'react-router-dom'
+import { Avatar, Popconfirm } from 'antd'
+import { UserOutlined } from '@ant-design/icons'
+import { Player } from '@lottiefiles/react-lottie-player'
+import { ClosePath } from '@src/constants/lottiePath'
+# 导入类型 和 action方法
+import { logout, UserState } from '@src/store/module/user'
+import { IStoreState } from '@src/store/type'
+import './index.less'
+
+interface IProps {
+    # 声明导入的方法
+    logout: () => void
+    # 声明导入的属性
+    username: UserState['username']
+}
+
+const UserInfo: React.FC<IProps> = memo((props) => {
+    const { replace } = useHistory()
+
+    const logOut = useCallback(() => {
+        # connect连接后属性和方法会加入到 props中以便使用
+        props.logout()
+        props.clearSideBarRoutes()
+        replace('/system/login')
+    }, [])
+    
+    return (
+        <div className='userinfo'>
+            <Avatar size={36} icon={<UserOutlined />} />
+            <h3 className='name'>{props.username}</h3>
+            <Popconfirm 
+              placement='bottomRight'
+              title='是否登出' 
+              okText='确认' 
+              cancelText='取消'
+              onConfirm={logOut}>
+                <div className='close'>
+                    <Player
+                      autoplay
+                      loop
+                      src={ClosePath}
+                      style={{ height: '58px', width: '58px' }} />
+                </div>
+            </Popconfirm>
+        </div>
+)
+ })
+
+ # 进行连接 connect()()  第一个()为要使用的属性和方法，第二个()为包裹的组件
+ # 我们在第一个{}中是使用箭头函数返回了username  (user:{username}: 类型)=>({username})
+ # 在第二个{}中返回action方法
+ # 注意： 如果我们不需要返回属性可把第一个{}写成()=>{},返回为空即可
+ # 不需要使用方法时写成 null即可
+ # 需要将方法别名可使用 mylogout: logout(action)
+export default connect(({ user: { username } }: IStoreState) => ({ username }), {
+    logout,
+})(UserInfo)
+
 ````
 
