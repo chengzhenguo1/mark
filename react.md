@@ -34,6 +34,22 @@ componentDidUpdate(prevProps, provState,snapshot){
 }
 ````
 
+#### tip
+
+##### 如何在改变state后调用某些异步方法
+
+```` tsx
+updateState = (data) => {
+	this.setState({
+        ...data
+    },()=>{
+        // 调用异步方法
+		this.updateRoleMenu();
+    })
+}
+
+````
+
 
 
 ### JSX
@@ -311,6 +327,20 @@ const ThemeContext = React.createContext('light')
 	EventBus.removeAllListeners('send')
     EventBus.off('send', this.onMsg.bind(this))
 ````
+
+#### 路由state传值
+
+```` tsx
+# pathname为路径， state为传递的对象
+push({ pathname: '/success', state: { path: '/staff/list' } 
+
+# 在需要接受的页面使用 
+const { state } = useLocation<{title: string}>()
+console.log(state.title)
+
+````
+
+
 
 #### ref
 
@@ -1070,6 +1100,31 @@ export const pathToList = (path: string): string[] => {
 }
 ````
 
+###### react路由按需加载后闪屏问题
+
+```` typescript
+# https://stackoverflow.com/questions/54158994/react-suspense-lazy-delay
+使用了 suspense + lazy按需加载路由后，第一次会闪屏
+"闪烁原因"，因为你的页面加载太快，所以loading加载，然后消失，因为加载已经结束，所以造成闪烁原因
+
+# 我们可以模拟懒加载，来设置定时器的时间延迟加载时间
+const Home = lazy(() => {
+  return new Promise(resolve => {
+    setTimeout(() => resolve(import("./home")), 300);
+  })
+})
+
+# 写成一个函数，更方便使用
+export function lazyImport(url: string, timer = 300) {
+    return lazy(() => new Promise((resolve) => {
+        setTimeout(() => resolve(import(/*  @vite-ignore */url)), timer)
+    }))
+}
+
+# 使用即可
+const System = lazyImport('../components/UserLayout')
+````
+
 
 
 #### React中使用TS
@@ -1571,11 +1626,12 @@ if (process.env.NODE_ENV === 'development') {
     middleware.push(reduxLogger)
 }
 
-// 创建store，整合reducer,且添加浏览器dev插件
+// 创建store，整合reducer
 function createMyStore() {
     const store = window.__REDUX_DEVTOOLS_EXTENSION__
     ? createStore(
         reducers,
+        // 添加中间件，添加浏览器dev插件
         compose(applyMiddleware(...middleware), window.__REDUX_DEVTOOLS_EXTENSION__({})),
       )
     : createStore(reducers, applyMiddleware(...middleware))
@@ -1737,3 +1793,484 @@ export default connect(({ user: { username } }: IStoreState) => ({ username }), 
 
 ````
 
+#### 使用异步
+
+```` tsx
+redux-thunk中间件
+https://zhuanlan.zhihu.com/p/85403048
+https://www.cnblogs.com/chaoyuehedy/p/9713167.html
+````
+
+### nginx的配置
+
+```` json
+# For more information on configuration, see:
+#   * Official English Documentation: http://nginx.org/en/docs/
+#   * Official Russian Documentation: http://nginx.org/ru/docs/
+
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+# Load dynamic modules. See /usr/share/doc/nginx/README.dynamic.
+include /usr/share/nginx/modules/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile            on;
+    tcp_nopush          on;
+    tcp_nodelay         on;
+    keepalive_timeout   65;
+    types_hash_max_size 2048;
+
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+
+    # Load modular configuration files from the /etc/nginx/conf.d directory.
+    # See http://nginx.org/en/docs/ngx_core_module.html#include
+    # for more information.
+    include /etc/nginx/conf.d/*.conf;
+
+    map $http_upgrade $connection_upgrade {
+	default upgrade;
+	''   close;
+    }
+		
+    server {
+        listen       80 default_server;
+        listen       [::]:80 default_server;
+        server_name  _;
+        root         /usr/share/nginx/html;
+
+        # Load configuration files for the default server block.
+        include /etc/nginx/default.d/*.conf;
+
+	
+	# Location是服务器的匹配的路径 比如 192.168.0.1/ 
+	
+	location / {
+		# 指向的资源 home下的react-project-music目录
+		root /home/react-project/music;
+		# index的目录
+		index index.html index.htm;
+	}
+
+	# 192.168.0.1/reactAdmin
+	
+	location /reactAdmin {
+	    # 配置多个项目的时候需要使用 alias
+		alias /home/react-project/admin;
+		index index.html index.htm;
+	}
+	
+	# 解决跨域问题，使用转发，访问/adminApi/ 的时候会 跳转到proxy_pass的路径
+
+	location /adminApi/ {
+		proxy_pass http://www.web-jshtml.cn/api/react/;
+	}
+
+	location /music/ {
+		proxy_pass http://127.0.0.1:3000/;
+	}
+	
+	location /api/ {
+		proxy_pass http://127.0.0.1:7001/;
+	}
+
+	location /socket.io/ {
+		proxy_pass http://127.0.0.1:7001;
+		proxy_http_version 1.1;
+		proxy_set_header Upgrade $http_upgrade;
+		proxy_set_header Connection "upgrade";
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	}
+
+        error_page 404 /404.html;
+        location = /404.html {
+        }
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+        }
+    }
+
+# Settings for a TLS enabled server.
+#
+#    server {
+#        listen       443 ssl http2 default_server;
+#        listen       [::]:443 ssl http2 default_server;
+#        server_name  _;
+#        root         /usr/share/nginx/html;
+#
+#        ssl_certificate "/etc/pki/nginx/server.crt";
+#        ssl_certificate_key "/etc/pki/nginx/private/server.key";
+#        ssl_session_cache shared:SSL:1m;
+#        ssl_session_timeout  10m;
+#        ssl_ciphers HIGH:!aNULL:!MD5;
+#        ssl_prefer_server_ciphers on;
+#
+#        # Load configuration files for the default server block.
+#        include /etc/nginx/default.d/*.conf;
+#
+#        location / {
+#        }
+#
+#        error_page 404 /404.html;
+#        location = /404.html {
+#        }
+#
+#        error_page 500 502 503 504 /50x.html;
+#        location = /50x.html {
+#        }
+#    }
+
+}
+
+
+````
+
+## 权限管理
+
+### 路由级别权限
+
+```` tsx
+   动态生成路由流程
+1.  首先设置路由表
+interface IRoute extends RouteProps{
+    // 子路由
+    children?: IRoute[]
+    // 路由组件
+    component?: any
+    // 跳转路由
+    redirect?: string
+    //  roles: ['admin', 'user']   角色校验 将控制页面角色(允许设置多个角色)
+    roles?: Roles[]
+    // 路由信息
+    meta?: IRouteMeta
+}
+2.  创建路由
+   /* 需要校验的路由 */
+export const authRoutes: IRoute[] = [
+    {
+        path: '/dashboard',
+        exact: true,
+        component: Dashboard,
+        roles: ['user', 'admin'],
+        meta: {
+            title: '控制台',
+            icon: 'AppstoreOutlined',
+        },
+    },
+       {
+        path: '/user',
+        redirect: '/user/add',
+        roles: ['user', 'admin'],
+        meta: {
+            title: '用户管理',
+            icon: 'UserOutlined',
+        },
+        children: [
+            {
+                path: '/user/list',
+                component: UserList,
+                meta: {
+                    title: '用户列表',
+                },
+            },
+        ],
+    },
+]
+
+export const routes: IRoute[] = [
+    {
+        path: '/system',
+        redirect: '/system/login',
+        component: System,
+        meta: {
+            title: '系统',
+        },
+        children: [
+            {
+                path: '/system/login',
+                exact: true,
+                component: Login,  
+                meta: {
+                    title: '登录',
+                },
+            },
+        ],
+    },
+    {
+        path: '/',
+        redirect: '/dashboard',
+        component: Layout,
+        meta: {
+            title: '系统',
+        },
+        children: [
+            ...authRoutes,
+            /* 错误页面 */
+    {
+        path: '/success',
+        component: lazy(() => import('../views/Success')),
+    },
+    {
+        path: '/error',
+        meta: {
+          title: '错误页面',
+        },
+        redirect: '/error/404',
+        children: [
+          {
+            path: '/error/404',
+            component: lazy(() => import('../views/Error/404')),
+            meta: {
+              title: '页面不存在',
+            },
+          },
+          {
+            path: '/error/403',
+            component: lazy(() => import('../views/Error/403')),
+            meta: {
+              title: '暂无权限',
+            },
+          },
+        ],
+    },
+    {
+        path: '/*',
+        meta: {
+          title: '错误页面',
+        },
+        redirect: '/error/404',
+    },
+    ],
+    },
+]
+
+3. 在主页面遍历最外层layout布局路由
+   SystemLayout 和 LayOut(需要校验的路由)
+   {layoutRouteList.map((route: IRoute) => (
+          <Route
+            key={`${route.path}`}
+            path={route.path}
+            exact={route.exact}
+            component={route.component} />
+   ))}
+4. 去layout页面遍历各自的子路由
+  SystemLayout页面
+  <Suspense fallback={<Spin className='lazy_loading' />}>
+    <Switch>
+        {systemRouteList.map((menu: IRoute) => (
+            <Route exact key={menu.path as string} path={menu.path} component={menu.component} />
+        ))}
+    </Switch>
+  </Suspense>
+  Layout页面
+  <Layout style={{ minHeight: '100vh' }}>
+        {/* 侧边栏 */}
+        <Sider collapsed={sidebar.opened} />
+        <Layout className='site-layout'>
+            {/* 顶部 */}
+            <Header sidebar={sidebar} />
+            {/* 中心区域 */}
+            <Main>
+                <MainRoutes />
+            </Main>
+        </Layout>
+  </Layout>
+5. 在MainRoutes页面下校验判断生成路由表 使用Auth校验组件包裹
+  function renderRoute(route: IRoute) {
+      const { component: Component } = route
+    
+      return (
+          <Route
+            key={`${route.path}`}
+            exact={route.path !== '*'}
+            path={route.path}
+            render={(props) => (
+                <Auth {...props} route={route}>
+                    <Component {...props} />
+                </Auth>
+          )} />
+      )
+  }
+
+  /* 条件渲染/下的路由列表 */
+  function renderRouteList(): React.ReactNode[] {
+    const result: React.ReactNode[] = []
+
+    businessRouteList.forEach((child: IRoute) => {
+      result.push(renderRoute(child))
+    })
+
+    return result
+  }
+  const MainRoutes: React.FC = memo(() => {
+    const routeList = useMemo(() => renderRouteList(), [])
+
+    return (
+        <AsyncRoutes>{routeList}</AsyncRoutes>
+    )
+})
+
+6. Auth组件进行校验，判断是否登录，有权限、跳转链接等。。。
+  function checkAuth(location: RouteComponentProps['location']): boolean {
+  // redux 中的 routes 同时负责渲染 sidebar
+  /* const { flattenRoutes } = store.getState().app */
+
+  const { role } = store.getState().user
+
+  // 判断当前访问路由是否在系统路由中, 不存在直接走最后默认的 404 路由
+  const route = businessRouteList.find((child) => child.path === location.pathname)
+
+  // 当前路由不存在直接返回
+  if (!route) {
+    return true
+  }
+
+  // 当前路由存在跳转也返回true
+  if (route.redirect) {
+    return true
+  }
+
+  // 不需要检验也返回true
+  if (!route.roles) {
+    return true
+  }
+
+  /*   // 查看当前路由是否存在系统中，该用户是否有此路由权限，后端返回路由表的时候使用该方法
+   if (!flattenRoutes.find((child) => child.path === location.pathname)) {
+    return false
+  }  */
+
+  /* 当前用户角色是否有该路由权限, admin直接放行 */
+  if (!route.roles?.includes(role as Roles) && role !== 'admin') {
+    return false
+  }
+
+  return true
+}
+
+function Auth(props: AuthProps) {
+  // 判断是否登录
+  if (!getToken()) {
+    return (
+        <Redirect
+          to={`/system/login?redirectURL=${encodeURIComponent(
+          window.location.origin
+            + props.location.pathname
+            + props.location.search,
+        )}`} />
+    )
+  }
+
+  // 检查是否有权限
+  if (!checkAuth(props.location)) {
+    return <Redirect to='/error/403' push />
+  }
+
+  // 检查是否有跳转
+  if (props.route.redirect) {
+    return <Redirect to={props.route.redirect} push />
+  }
+
+  // 进行渲染 route
+  return <>{props.children}</>
+}
+
+7. AsyncRoutes组件进行侧边栏的生成, 获取当前用户的角色进行过滤路由并存放到redux中
+ function formatMenuToRoute(menus: IRoute[], role: Roles): IRoute[] {
+  const result: IRoute[] = []
+  menus.forEach((menu) => {
+    /* 查看当前路由表是否有权限, admin不用校验 */
+    if (((menu?.path && checkAuth(menu.roles, role)) || role === 'admin')) {
+      const route: IRoute = {
+        path: menu.path,
+        meta: { 
+          title: menu.meta?.title || '未知',
+          icon: menu.meta?.icon,
+        },
+      }
+      if (menu.children) {
+        route.children = formatMenuToRoute(menu.children, role)
+      }
+      result.push(route)
+    }
+  })
+  return result
+}
+
+const AsyncRoutes: React.FC<AsyncRoutesProps> = (props) => {
+  if (!props.init) {
+    /* 
+       进行侧边栏筛选渲染，查看当前路由是否有该权限
+       可以进行异步请求后端路由表，根据后端存储的路由进行渲染，
+       同时存储到Redux中，然后在Auth组件改变校验方式，也就是注释上的
+       如
+        apiGetMenuList()
+        .then(({ data }) => {
+          props.setSideBarRoutes(formatMenuToRoute(data.list));
+        })
+        .catch(() => {})
+    */
+   props.setSideBarRoutes(formatMenuToRoute(authRoutes, props.role))
+
+   return <Spin />
+  }
+  return <TransitionMain>{props.children}</TransitionMain>
+}
+
+export default connect(({ app, user: { role } }: IStoreState) => ({ init: app.init, role }), { setSideBarRoutes })(
+  memo(AsyncRoutes),
+)
+
+# 后台返回路由表的流程
+	#在AsyncRoutes组件中请求后台api
+    返回一个路由表，对路由表进行打平存储以及存储渲染侧边栏
+    apiGetMenuList()
+        .then(({ data }) => {
+          props.setSideBarRoutes(formatMenuToRoute(data.list));
+    })
+    .catch(() => {})
+    #在Auth中校验
+    判断打平路由的数组中如果不存在当前页面，返回403即可
+     if (!flattenRoutes.find((child) => child.path === location.pathname)) {
+    		return false
+  	 } 
+
+````
+
+### 按钮级别权限
+
+```` tsx
+  # 根据角色判断是否渲染该组件
+export const checkAuth = (roles?: Roles[], auth?: Roles) => {
+    if (!roles) {
+        return true
+    }
+    /* 判断用户是否在校验表中，条件渲染组件 */
+    return !!roles.includes(auth as never)
+}
+
+const AuthWrapper: React.FC<IProps> = memo(({
+ roles, role, component: Component, noMatch = null, 
+}) => (
+         checkAuth(roles, role) ? Component : noMatch
+))
+
+export default connect(({ user: { role } }: IStoreState) => ({ role }), null)(AuthWrapper)
+
+````

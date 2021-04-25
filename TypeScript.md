@@ -201,7 +201,6 @@ class Clock implements ClockInterface {
     }
     constructor(h: number, m: number) { }
 }
-123456789101112
 ```
 
 **类静态部分与实例部分的区别**
@@ -219,6 +218,8 @@ class Clock implements ClockInterface {
 #### 接口继承类
 
 当接口继承了一个类类型时，它会继承类的成员但不包括其实现
+
+
 
 ## 类
 
@@ -1637,6 +1638,24 @@ class App extends React.Component<Props, State> {
 
 ## Tip
 
+### 如何读取一个接口的属性的类型
+
+```` typescript
+# 我们要取Person的person属性
+interface Person {
+  person: {
+    name: string
+    age: number
+  }
+}
+# 使用Person['person'] 读取即可
+interface Student {
+  person: Person['person']
+}
+````
+
+
+
 Union类型很容易解决这些类型问题:
 
 ```tsx
@@ -1871,6 +1890,14 @@ export const cleanObject = (object: {[key: string]: unknown}=>{
 ```` typescript
 const test = <V>(value: V) => {
     ....
+}
+
+const GlobalTable = <T>(props: GlobalTableProp<T>) => {
+  return (
+    <div>
+      <Table columns={columns} dataSource={datasource} />}
+    </div>
+  )
 }
 ````
 
