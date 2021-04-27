@@ -1801,6 +1801,82 @@ https://zhuanlan.zhihu.com/p/85403048
 https://www.cnblogs.com/chaoyuehedy/p/9713167.html
 ````
 
+#### 简易源码
+
+##### redux
+
+```` javascript
+#	https://juejin.cn/post/6844904036013965325#heading-0
+// 初始化对象
+const initState = {
+    info: ''
+}
+// 整合state和action；根据action返回state
+const reducer = (state = initState,action)=>{
+    switch(action.type){
+        case 'mes': 
+            return {
+                ...state, info: 'mes'
+            }
+        case 'clear': 
+            return {
+                ...initState
+            }
+
+        case 'init':
+        default: 
+            return {
+                ...state
+            }
+    }
+}
+
+// 创建store的方法
+function createStore(reducer){
+    // state对象
+    let _state = {}
+    // 观察者队列
+    let observer = []
+    // 获取当前state
+    function getState(){
+        return _state
+    }
+    // 根据type的不同，store会修改对应的state
+    function dispatch(action) {
+        _state = reducer(_state,action)
+        observer.forEach(fn=>fn())
+    }
+    // 添加观察者
+    function subscribe(fn) {                
+        observer.push(fn)   
+    }    
+    // 初始化对象
+    dispatch({type: 'init'})
+    // 返回get，dispatch，sub
+    return {
+        getState, 
+        dispatch, 
+        subscribe
+    }
+}
+// 创建store对象
+const store = createStore(reducer)
+// 添加观察者
+store.subscribe(()=>{
+    console.log('监听回调')
+})
+// 触发dispatch
+store.dispatch({type: 'mes'})
+// 打印store的state
+console.log(store.getState())
+// 触发dispatch
+store.dispatch({type: 'clear'})
+// 打印store的state
+console.log(store.getState())
+````
+
+
+
 ### nginx的配置
 
 ```` json
@@ -2238,14 +2314,14 @@ export default connect(({ app, user: { role } }: IStoreState) => ({ init: app.in
 )
 
 # 后台返回路由表的流程
-	#在AsyncRoutes组件中请求后台api
+	#在AsyncRoutes组件中请求后台api，存储路由表
     返回一个路由表，对路由表进行打平存储以及存储渲染侧边栏
     apiGetMenuList()
         .then(({ data }) => {
           props.setSideBarRoutes(formatMenuToRoute(data.list));
     })
     .catch(() => {})
-    #在Auth中校验
+    #在Auth组件中根据路由表校验，来判断是否生成ROUTE
     判断打平路由的数组中如果不存在当前页面，返回403即可
      if (!flattenRoutes.find((child) => child.path === location.pathname)) {
     		return false
