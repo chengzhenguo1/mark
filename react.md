@@ -1318,6 +1318,8 @@ export const PostInfo = () => {
 };
 ````
 
+
+
 #### React中使用Mobx
 
 ###### 1.创建一个store主仓库
@@ -1796,9 +1798,29 @@ export default connect(({ user: { username } }: IStoreState) => ({ username }), 
 #### 使用异步
 
 ```` tsx
-redux-thunk中间件
+redux-thunk中间件 # 会判断当前action是不是一个函数，是的话走action(dispatch),否则走下一个next(action)
 https://zhuanlan.zhihu.com/p/85403048
 https://www.cnblogs.com/chaoyuehedy/p/9713167.html
+
+const login = (userName) => (dispatch) => {
+  dispatch({ type: 'loginStart' })
+  request.post('/api/login', { data: userName }, () => {
+    dispatch({ type: 'loginSuccess', payload: userName })
+  })
+}
+# 看到action是一个函数,走action(store.dispatch) 也就是将dispatch传入进去
+store.dispatch(login('Lucy'))
+
+
+function thunk(store) {    
+    let next = store.dispatch    
+    return (action) => {        
+        console.log('thunk')        
+        return typeof action === 'function' ? action(store.dispatch) : next(action)    
+    }
+}
+
+redux-promise # 判断当前payload是不是一个promise
 ````
 
 #### 简易源码
@@ -1875,6 +1897,66 @@ store.dispatch({type: 'clear'})
 console.log(store.getState())
 ````
 
+##### react-redux
+
+###### Provider
+
+```` javascript
+import React from 'react'
+import PropTypes from 'prop-types'
+
+export default class Provider extends React.Component{
+    static childContextTypes = {    
+        store: PropTypes.object  
+    }
+    // 实现getChildContext方法,返回context对象,也是固定写法  
+    getChildContext() {    
+        return { store: this.store }  
+    } 
+    constructor(props,context){
+        super(props,context)
+        this.store = props.store
+    }
+    render(){
+        return this.props.children  
+    }
+}
+````
+
+Connect
+
+```` javascript
+import React from 'react'
+import PropTypes from 'prop-types'
+
+export function connect(mapStateToProps, mapDispatchToProps) {
+    return function (Component) {
+        class Connect extends React.Component {
+            componentDidMount() {
+                this.context.store.subscribe(this.handleStoreChange.bind(this))
+            }
+            handleStoreChange() {
+                // 触发更新          
+                // 触发的方法有多种,这里为了简洁起见,直接forceUpdate强制更新,读者也可以通过setState来触发子组件更新          
+                this.forceUpdate()
+            }
+            render() {
+                return (
+                    <Component 
+                    {...this.props} 
+                    {...mapStateToProps(this.context.store.getState())}  
+                    {...mapDispatchToProps(this.context.store.dispatch)} />
+                )
+            }
+        }
+        Connect.contextTypes = {        
+            store: PropTypes.object      
+        }      
+        return Connect    
+    }
+}
+````
+
 
 
 ### nginx的配置
@@ -1923,8 +2005,10 @@ http {
     }
 		
     server {
+    # 监听端口
         listen       80 default_server;
         listen       [::]:80 default_server;
+    #监听地址
         server_name  _;
         root         /usr/share/nginx/html;
 
@@ -2350,3 +2434,36 @@ const AuthWrapper: React.FC<IProps> = memo(({
 export default connect(({ user: { role } }: IStoreState) => ({ role }), null)(AuthWrapper)
 
 ````
+
+## 源码解析
+
+#### 基础知识 React API 一览 
+
+##### 1.JSX到JavaScript的转换
+
+JSX的代码都会转换成createElement
+
+自定义的组件**需要大写**,否则React.createElement的第一个标签参数会是**字符串**
+
+```` javascript
+function App(){
+	return <div ref='ref'></div>
+}
+
+<App>
+  <div>啊<span key='key'>扫把</span></div>
+</App>
+
+# 转换后
+function App() {
+  return /*#__PURE__*/React.createElement("div", {
+    ref: "ref"
+  });
+}
+
+/*#__PURE__*/
+React.createElement(App, null, /*#__PURE__*/React.createElement("div", null, "\u554A", /*#__PURE__*/React.createElement("span", {
+  key: "key"
+}, "\u626B\u628A")));
+````
+
