@@ -174,3 +174,50 @@
 ![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/e4a52e6fbf9b4e66bcaa8b71996243c2~tplv-k3u1fbpfcp-watermark.image)
 
 具体的详情你可以看看 -- [CSS 奇技淫巧：动态高度过渡动画](https://github.com/chokcoco/iCSS/issues/91)。
+
+##### 浪文本网页特效
+
+利用css变量设置动画延迟时间
+
+```` html
+<div class="wrapper">
+        <!-- css变量 -->
+        <span style="--i:1">欢</span>
+        <span style="--i:2">迎</span>
+        <span style="--i:3">来</span>
+        <span style="--i:4">到</span>
+        <span style="--i:5">CSS</span>
+        <span style="--i:6">世</span>
+        <span style="--i:7">界</span>
+</div>
+````
+
+```` css
+.wrapper {
+    display: flex;
+    /* 倒影 */
+    -webkit-box-reflect: below -12px linear-gradient(transparent, rgba(0, 0, 0, 0.2));
+}
+
+.wrapper span {
+    font-size: 2em;
+    animation: animate 1s ease-in-out infinite;
+    color: #fff;
+    /* 延迟时间 */
+    animation-delay: calc(.1s * var(--i));
+}
+
+@keyframes animate {
+    0% {
+        transform: translateY(0);
+    }
+    20% {
+        transform: translateY(-24px);
+    }
+    40%,
+    100% {
+        transform: translateX(0);
+    }
+}
+````
+

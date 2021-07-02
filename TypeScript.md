@@ -338,7 +338,6 @@ interface Person {
     age?: number;
     [propName: string]: any;
 }
-12345
 ```
 
 **注意：**
@@ -355,14 +354,12 @@ interface Person {
 
 ```javascript
 let fibonacci: number[] = [1, 1, 2, 3, 5];
-1
 ```
 
 - 可以使用数组泛型来表示数组
 
 ```javascript
 let fibonacci: Array<number> = [1, 1, 2, 3, 5];
-1
 ```
 
 - 用接口表示数组(过于复杂，一般不用)
@@ -372,7 +369,6 @@ interface NumberArray {
     [index: number]: number;
 }
 let fibonacci: NumberArray = [1, 1, 2, 3, 5];
-1234
 ```
 
 `NumberArray`表示：只要索引的类型是数字时，那么值的类型必须是数字
@@ -387,7 +383,6 @@ function sum() {
         callee: Function;
     } = arguments;
 }
-1234567
 ```
 
 **数组里`any`的使用**
@@ -395,7 +390,6 @@ function sum() {
 
 ```javascript
 let list: any[] = ['xcatliu', 25, { website: 'http://xcatliu.com' }];
-1
 ```
 
 #### 函数的类型
@@ -408,7 +402,6 @@ let list: any[] = ['xcatliu', 25, { website: 'http://xcatliu.com' }];
 function sum(x: number, y: number): number {
     return x + y;
 }
-123
 ```
 
 - 函数表达式
@@ -417,7 +410,6 @@ function sum(x: number, y: number): number {
 let mySum: (x: number, y: number) => number = function (x: number, y: number): number {
     return x + y;
 };
-123
 ```
 
 **注意：**
@@ -435,7 +427,6 @@ let mySearch: SearchFunc;
 mySearch = function(source: string, subString: string) {
     return source.search(subString) !== -1;
 }
-12345678
 ```
 
 关于函数的参数：
@@ -451,7 +442,6 @@ function buildName(firstName: string = 'Tom', lastName: string, nickName?: strin
 }
 let tomcat = buildName('Tom', 'Cat');
 let cat = buildName(undefined, 'Cat', 'mimi');
-12345
 ```
 
 **重载：**
@@ -466,7 +456,6 @@ function reverse(x: number | string): number | string {
         return x.split('').reverse().join('');
     }
 }
-123456789
 ```
 
 **注意：**
@@ -497,7 +486,6 @@ function isApiError(error: Error) {
     }
     return false;
 }
-12345678910111213
 ```
 
 如上，因为接口是一个类型，不是一个真正的值，它在编译结果中会被删除，就无法使用 `instanceof`来做运行时判断，此时就只能使用类型断言来判断。
@@ -506,7 +494,6 @@ function isApiError(error: Error) {
 
 ```javascript
 window.foo = 1;
-1
 ```
 
 上述代码，在TS编译时会报错，显示window上不存在foo属性
@@ -514,7 +501,6 @@ window.foo = 1;
 
 ```javascript
 (window as any).foo = 1;
-1
 ```
 
 在`any`类型的变量上，访问任何属性都是允许的。
@@ -538,7 +524,6 @@ window.foo = 1;
 ```javascript
 const tom = getCacheData('tom') as Cat;  // 类型断言
 const tom: Cat = getCacheData('tom');    // 类型声明
-12
 ```
 
 - 可以使用泛型来更加规范的实现对类型的约束
@@ -866,7 +851,6 @@ function getName(n: NameOrResolver): Name {
         return n();
     }
 }
-12345678910
 ```
 
 #### 字符串字面量类型
