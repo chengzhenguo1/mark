@@ -282,6 +282,29 @@ watchEffect(route, getBreadcrumb)
     })
 ````
 
+### sync的用法
+
+当`父组件`传值进`子组件`，子组件想要改变这个值时，可以这么做
+
+```js
+父组件里
+<children :foo="bar" @update:foo="val => bar = val"></children>
+
+子组件里
+this.$emit('update:foo', newValue)
+复制代码
+```
+
+`sync`修饰符的作用就是，可以简写：
+
+```js
+父组件里
+<children :foo.sync="bar"></children>
+
+子组件里
+this.$emit('update:foo', newValue)
+```
+
 ### 配置css公共变量
 
 ``` json
@@ -597,3 +620,75 @@ import variables from '@styles/global.module.scss'
 
  1.npm uninstall less-loader
  2.npm install less-loader@6.0.0
+
+### SassError: expected selector报错 样式穿透报错
+
+::v-deep 替换 /deep/
+
+### but only one is allowed（重复处理跨域请求）
+
+Access to XMLHttpRequest at 'http://192.168.0.144:8762/ctginms_main2019/api/traceRoute/getMapData' from origin 'http://localhost:8080' has been blocked by CORS policy: The 'Access-Control-Allow-Origin' header contains multiple values 'http://localhost:8080, http://localhost:8080', but only one is allowed.
+
+具体错误如下
+
+![img](https://img-blog.csdnimg.cn/20190730165915240.png)
+
+后台接口可以接收到前台的请求，并且响应，但是前台收不到响应
+
+![img](https://img-blog.csdnimg.cn/20190730170603639.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzI5ODMyMjE3,size_16,color_FFFFFF,t_70)
+
+前台 vue 后台 jHipster
+
+用postman和swagger可以正常获取数据
+
+错误产生原因：在zuul和及jHipster 中都处理了跨域请求，所以导致重复
+
+解决方法：干掉jHipster中的处理跨域请求的代码即可
+
+下面代码就是jHipster 中处理跨域请求的，注释掉即可
+
+```` json
+@Bean
+    public CorsFilter corsFilter() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration config = jHipsterProperties.getCors();
+        if (config.getAllowedOrigins() != null && !config.getAllowedOrigins().isEmpty()) {
+            log.debug("Registering CORS filter");
+            source.registerCorsConfiguration("/api/**", config);
+            source.registerCorsConfiguration("/v2/api-docs", config);
+        }
+        return new CorsFilter(source);
+    }。
+````
+
+原文链接：https://blog.csdn.net/qq_29832217/article/details/97797816
+
+### 强制更新
+
+![image-20210713104204397](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20210713104204397.png)
+
+[处理边界情况 — Vue.js (vuejs.org)](https://cn.vuejs.org/v2/guide/components-edge-cases.html#强制更新)
+
+### 处理 elementUI 中表格多选框禁用问题
+
+在 el-table-column type 类型为 selection 组件中，添加 :selectable='方法名'
+
+```` javascript
+<el-table :data="tableData" v-loading="loading" max-height="570" stripe :header-cell-style="headerStyle" @selection-change="handleSelectionLeftChange">
+   <el-table-column type="selection" width="50" :selectable='selectEnable'>
+   </el-table-column>
+   <el-table-column prop="appName" label="选择产品" align="center" width="350">
+   </el-table-column>
+</el-table>方法函数
+````
+
+```` javascript
+selectEnable(row, rowIndex) {
+      if (this.enabelIds.some(item => item === row.id)) {
+        return false
+      } else {
+        return true// 不禁用
+      }
+ }
+````
+
