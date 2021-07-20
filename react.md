@@ -34,6 +34,22 @@ componentDidUpdate(prevProps, provState,snapshot){
 }
 ````
 
+#### tip
+
+##### 如何在改变state后调用某些异步方法
+
+```` tsx
+updateState = (data) => {
+	this.setState({
+        ...data
+    },()=>{
+        // 调用异步方法
+		this.updateRoleMenu();
+    })
+}
+
+````
+
 
 
 ### JSX
@@ -70,6 +86,10 @@ arrList: [7,8,1,2,4,5,7,3,6,6]
  {
       arrList.slice(0, 4).map(e =><li> {e} </li>)
  }
+                              
+ {/* 指定for次数 */}
+[1,2,3,4].map((item,index)=>{return arr.slice(index*4,(index + 1)*4) })
+ 结果 [1,2,3,4] [5,6,7,8] [9,10,11,12] .....
 ````
 
 #### 绑定事件
@@ -307,6 +327,20 @@ const ThemeContext = React.createContext('light')
 	EventBus.removeAllListeners('send')
     EventBus.off('send', this.onMsg.bind(this))
 ````
+
+#### 路由state传值
+
+```` tsx
+# pathname为路径， state为传递的对象
+push({ pathname: '/success', state: { path: '/staff/list' } 
+
+# 在需要接受的页面使用 
+const { state } = useLocation<{title: string}>()
+console.log(state.title)
+
+````
+
+
 
 #### ref
 
@@ -598,6 +632,11 @@ class NavBar extends Component {
     )
   }
 }
+
+
+# Tip
+给一个组件设置 ref 然后插入到其他组件中
+使用children可访问ref属性，进行判断
 ````
 
 #### createPortal挂载节点
@@ -704,7 +743,6 @@ import {ReactComponent as SotfLogo} from 'assets/sotfware-logo.svg'
 	用来写css样式的
 2.classNames
 	行内class需要拼接很不方便，推荐的一个css库，类似于vue的class写法
-
 ````
 
 #### Vite中使用antd
@@ -1051,6 +1089,41 @@ interface ListProps extends TableProps<project>{
 }
 ````
 
+###### antd菜单栏展开解析
+
+```` typescript
+# /announcement/list/a  解析成 [/announcement,/announcement/list,/announcement/list/a]
+export const pathToList = (path: string): string[] => {
+    const pathList = path.split('/').filter((item) => item)
+    return pathList.map((item, index) => `/${pathList.slice(0, index + 1).join('/')}`)
+}
+````
+
+###### react路由按需加载后闪屏问题
+
+```` typescript
+# https://stackoverflow.com/questions/54158994/react-suspense-lazy-delay
+使用了 suspense + lazy按需加载路由后，第一次会闪屏
+"闪烁原因"，因为你的页面加载太快，所以loading加载，然后消失，因为加载已经结束，所以造成闪烁原因
+
+# 我们可以模拟懒加载，来设置定时器的时间延迟加载时间
+const Home = lazy(() => {
+  return new Promise(resolve => {
+    setTimeout(() => resolve(import("./home")), 300);
+  })
+})
+
+# 写成一个函数，更方便使用
+export function lazyImport(url: string, timer = 300) {
+    return lazy(() => new Promise((resolve) => {
+        setTimeout(() => resolve(import(/*  @vite-ignore */url)), timer)
+    }))
+}
+
+# 使用即可
+const System = lazyImport('../components/UserLayout')
+````
+
 
 
 #### React中使用TS
@@ -1243,6 +1316,8 @@ export const PostInfo = () => {
   );
 };
 ````
+
+
 
 #### React中使用Mobx
 
@@ -1519,5 +1594,875 @@ import { useLocation,useHistory,useParams } from 'react-router-dom'
 执行方法获取参数即可
 const { pathname } = useLocation()
 console.log(pathname)
+````
+
+### Redux
+
+#### 创建redux
+
+```` typescript
+# 下载依赖
+redux   redux-thunk   redux-logger react-redux
+# 创建一个sotre/index.ts
+
+import {
+ createStore, Reducer, combineReducers, Middleware, compose, applyMiddleware,
+} from 'redux'
+import reduxThunk from 'redux-thunk'
+import reduxLogger from 'redux-logger'
+import { IAction, IStoreState } from './type'
+import userReducer from './module/user'
+import appReducer from './module/app'
+
+// reducer整合store和action
+const reducers: Reducer<IStoreState, IAction<any>> = combineReducers<IStoreState>({
+    user: userReducer,
+})
+
+// 使用中间件
+const middleware: Middleware[] = [reduxThunk]
+
+// 判断是否是生产环境
+if (process.env.NODE_ENV === 'development') {
+    middleware.push(reduxLogger)
+}
+
+// 创建store，整合reducer
+function createMyStore() {
+    const store = window.__REDUX_DEVTOOLS_EXTENSION__
+    ? createStore(
+        reducers,
+        // 添加中间件，添加浏览器dev插件
+        compose(applyMiddleware(...middleware), window.__REDUX_DEVTOOLS_EXTENSION__({})),
+      )
+    : createStore(reducers, applyMiddleware(...middleware))
+
+  return store
+}
+
+const store = createMyStore()
+
+// 导出
+export default store
+````
+
+#### 声明type类型
+
+```` typescript
+import { AppState } from './module/app';
+import { UserState } from './module/user'
+
+export interface IStoreState{
+    user: UserState
+}
+
+export interface IAction<T> {
+    type: string
+    payload: T
+}
+
+````
+
+#### 创建module/user.ts
+
+```` typescript
+import { Reducer } from 'redux'
+import {
+ getRole, getToken, localSetUserInfo, localRemoveUserInfo, getUser, 
+} from '@src/utils/auth'
+import { Roles } from '@src/router/type'
+import { IAction } from '../type'
+
+// 声明user的state类型
+export interface UserState {
+    username: string
+    token: string
+    role: Roles 
+}
+
+// 初始化state的值
+const defaultUser: UserState = {
+    username: getUser(),
+    token: getToken(),
+    role: getRole() as Roles,
+}
+
+// action的type
+const SET_USER_INFO = 'SET_USER_INFO'
+const SET_USER_LOGOUT = 'SET_USER_LOGOUT'
+
+// action，需要导出在页面中使用, payload就是传进来的属性值
+export const setUserInfo: (user: UserState) => IAction<UserState> = (user) => ({
+    type: SET_USER_INFO,
+    payload: user,
+})
+
+export const logout: ()=> IAction<null> = () => ({
+    type: SET_USER_LOGOUT,
+    payload: null,
+})
+
+// reducer整合action和state，初始化state
+const userReducer: Reducer<UserState, IAction<any>> = (state = defaultUser, action: IAction<any>) => {
+    const { type, payload } = action
+    // 判断action的类型，来进行响应的数据处理
+    switch (type) {
+        case SET_USER_INFO:
+            localSetUserInfo(payload)
+            return {
+                ...payload,
+            }
+        case SET_USER_LOGOUT:
+            localRemoveUserInfo()
+            return {
+                ...defaultUser,
+            }
+        default:
+            return state
+    }
+}
+
+// 导出reducer
+export default userReducer
+````
+
+#### 在组件中使用方式
+
+```` typescript
+# 需要导入connect进行连接组件
+import React, { memo, useCallback } from 'react'
+# 导入connect
+import { connect } from 'react-redux'
+import { useHistory } from 'react-router-dom'
+import { Avatar, Popconfirm } from 'antd'
+import { UserOutlined } from '@ant-design/icons'
+import { Player } from '@lottiefiles/react-lottie-player'
+import { ClosePath } from '@src/constants/lottiePath'
+# 导入类型 和 action方法
+import { logout, UserState } from '@src/store/module/user'
+import { IStoreState } from '@src/store/type'
+import './index.less'
+
+interface IProps {
+    # 声明导入的方法
+    logout: () => void
+    # 声明导入的属性
+    username: UserState['username']
+}
+
+const UserInfo: React.FC<IProps> = memo((props) => {
+    const { replace } = useHistory()
+
+    const logOut = useCallback(() => {
+        # connect连接后属性和方法会加入到 props中以便使用
+        props.logout()
+        props.clearSideBarRoutes()
+        replace('/system/login')
+    }, [])
+    
+    return (
+        <div className='userinfo'>
+            <Avatar size={36} icon={<UserOutlined />} />
+            <h3 className='name'>{props.username}</h3>
+            <Popconfirm 
+              placement='bottomRight'
+              title='是否登出' 
+              okText='确认' 
+              cancelText='取消'
+              onConfirm={logOut}>
+                <div className='close'>
+                    <Player
+                      autoplay
+                      loop
+                      src={ClosePath}
+                      style={{ height: '58px', width: '58px' }} />
+                </div>
+            </Popconfirm>
+        </div>
+)
+ })
+
+ # 进行连接 connect()()  第一个()为要使用的属性和方法，第二个()为包裹的组件
+ # 我们在第一个{}中是使用箭头函数返回了username  (user:{username}: 类型)=>({username})
+ # 在第二个{}中返回action方法
+ # 注意： 如果我们不需要返回属性可把第一个{}写成()=>{},返回为空即可
+ # 不需要使用方法时写成 null即可
+ # 需要将方法别名可使用 mylogout: logout(action)
+export default connect(({ user: { username } }: IStoreState) => ({ username }), {
+    logout,
+})(UserInfo)
+
+````
+
+#### 使用异步
+
+```` tsx
+redux-thunk中间件 # 会判断当前action是不是一个函数，是的话走action(dispatch),否则走下一个next(action)
+https://zhuanlan.zhihu.com/p/85403048
+https://www.cnblogs.com/chaoyuehedy/p/9713167.html
+
+const login = (userName) => (dispatch) => {
+  dispatch({ type: 'loginStart' })
+  request.post('/api/login', { data: userName }, () => {
+    dispatch({ type: 'loginSuccess', payload: userName })
+  })
+}
+# 看到action是一个函数,走action(store.dispatch) 也就是将dispatch传入进去
+store.dispatch(login('Lucy'))
+
+
+function thunk(store) {    
+    let next = store.dispatch    
+    return (action) => {        
+        console.log('thunk')        
+        return typeof action === 'function' ? action(store.dispatch) : next(action)    
+    }
+}
+
+redux-promise # 判断当前payload是不是一个promise
+````
+
+#### 简易源码
+
+##### redux
+
+```` javascript
+#	https://juejin.cn/post/6844904036013965325#heading-0
+// 初始化对象
+const initState = {
+    info: ''
+}
+// 整合state和action；根据action返回state
+const reducer = (state = initState,action)=>{
+    switch(action.type){
+        case 'mes': 
+            return {
+                ...state, info: 'mes'
+            }
+        case 'clear': 
+            return {
+                ...initState
+            }
+
+        case 'init':
+        default: 
+            return {
+                ...state
+            }
+    }
+}
+
+// 创建store的方法
+function createStore(reducer){
+    // state对象
+    let _state = {}
+    // 观察者队列
+    let observer = []
+    // 获取当前state
+    function getState(){
+        return _state
+    }
+    // 根据type的不同，store会修改对应的state
+    function dispatch(action) {
+        _state = reducer(_state,action)
+        observer.forEach(fn=>fn())
+    }
+    // 添加观察者
+    function subscribe(fn) {                
+        observer.push(fn)   
+    }    
+    // 初始化对象
+    dispatch({type: 'init'})
+    // 返回get，dispatch，sub
+    return {
+        getState, 
+        dispatch, 
+        subscribe
+    }
+}
+// 创建store对象
+const store = createStore(reducer)
+// 添加观察者
+store.subscribe(()=>{
+    console.log('监听回调')
+})
+// 触发dispatch
+store.dispatch({type: 'mes'})
+// 打印store的state
+console.log(store.getState())
+// 触发dispatch
+store.dispatch({type: 'clear'})
+// 打印store的state
+console.log(store.getState())
+````
+
+##### react-redux
+
+###### Provider
+
+```` javascript
+import React from 'react'
+import PropTypes from 'prop-types'
+
+export default class Provider extends React.Component{
+    static childContextTypes = {    
+        store: PropTypes.object  
+    }
+    // 实现getChildContext方法,返回context对象,也是固定写法  
+    getChildContext() {    
+        return { store: this.store }  
+    } 
+    constructor(props,context){
+        super(props,context)
+        this.store = props.store
+    }
+    render(){
+        return this.props.children  
+    }
+}
+````
+
+Connect
+
+```` javascript
+import React from 'react'
+import PropTypes from 'prop-types'
+
+export function connect(mapStateToProps, mapDispatchToProps) {
+    return function (Component) {
+        class Connect extends React.Component {
+            componentDidMount() {
+                this.context.store.subscribe(this.handleStoreChange.bind(this))
+            }
+            handleStoreChange() {
+                // 触发更新          
+                // 触发的方法有多种,这里为了简洁起见,直接forceUpdate强制更新,读者也可以通过setState来触发子组件更新          
+                this.forceUpdate()
+            }
+            render() {
+                return (
+                    <Component 
+                    {...this.props} 
+                    {...mapStateToProps(this.context.store.getState())}  
+                    {...mapDispatchToProps(this.context.store.dispatch)} />
+                )
+            }
+        }
+        Connect.contextTypes = {        
+            store: PropTypes.object      
+        }      
+        return Connect    
+    }
+}
+````
+
+
+
+### nginx的配置
+
+```` json
+# For more information on configuration, see:
+#   * Official English Documentation: http://nginx.org/en/docs/
+#   * Official Russian Documentation: http://nginx.org/ru/docs/
+
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+# Load dynamic modules. See /usr/share/doc/nginx/README.dynamic.
+include /usr/share/nginx/modules/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile            on;
+    tcp_nopush          on;
+    tcp_nodelay         on;
+    keepalive_timeout   65;
+    types_hash_max_size 2048;
+
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+
+    # Load modular configuration files from the /etc/nginx/conf.d directory.
+    # See http://nginx.org/en/docs/ngx_core_module.html#include
+    # for more information.
+    include /etc/nginx/conf.d/*.conf;
+
+    map $http_upgrade $connection_upgrade {
+	default upgrade;
+	''   close;
+    }
+		
+    server {
+    # 监听端口
+        listen       80 default_server;
+        listen       [::]:80 default_server;
+    #监听地址
+        server_name  _;
+        root         /usr/share/nginx/html;
+
+        # Load configuration files for the default server block.
+        include /etc/nginx/default.d/*.conf;
+
+	
+	# Location是服务器的匹配的路径 比如 192.168.0.1/ 
+	
+	location / {
+		# 指向的资源 home下的react-project-music目录
+		root /home/react-project/music;
+		# index的目录
+		index index.html index.htm;
+	}
+
+	# 192.168.0.1/reactAdmin
+	
+	location /reactAdmin {
+	    # 配置多个项目的时候需要使用 alias
+		alias /home/react-project/admin;
+		index index.html index.htm;
+	}
+	
+	# 解决跨域问题，使用转发，访问/adminApi/ 的时候会 跳转到proxy_pass的路径
+
+	location /adminApi/ {
+		proxy_pass http://www.web-jshtml.cn/api/react/;
+	}
+
+	location /music/ {
+		proxy_pass http://127.0.0.1:3000/;
+	}
+	
+	location /api/ {
+		proxy_pass http://127.0.0.1:7001/;
+	}
+
+	location /socket.io/ {
+		proxy_pass http://127.0.0.1:7001;
+		proxy_http_version 1.1;
+		proxy_set_header Upgrade $http_upgrade;
+		proxy_set_header Connection "upgrade";
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	}
+
+        error_page 404 /404.html;
+        location = /404.html {
+        }
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+        }
+    }
+
+# Settings for a TLS enabled server.
+#
+#    server {
+#        listen       443 ssl http2 default_server;
+#        listen       [::]:443 ssl http2 default_server;
+#        server_name  _;
+#        root         /usr/share/nginx/html;
+#
+#        ssl_certificate "/etc/pki/nginx/server.crt";
+#        ssl_certificate_key "/etc/pki/nginx/private/server.key";
+#        ssl_session_cache shared:SSL:1m;
+#        ssl_session_timeout  10m;
+#        ssl_ciphers HIGH:!aNULL:!MD5;
+#        ssl_prefer_server_ciphers on;
+#
+#        # Load configuration files for the default server block.
+#        include /etc/nginx/default.d/*.conf;
+#
+#        location / {
+#        }
+#
+#        error_page 404 /404.html;
+#        location = /404.html {
+#        }
+#
+#        error_page 500 502 503 504 /50x.html;
+#        location = /50x.html {
+#        }
+#    }
+
+}
+
+
+````
+
+## 权限管理
+
+### 路由级别权限
+
+```` tsx
+   动态生成路由流程
+1.  首先设置路由表
+interface IRoute extends RouteProps{
+    // 子路由
+    children?: IRoute[]
+    // 路由组件
+    component?: any
+    // 跳转路由
+    redirect?: string
+    //  roles: ['admin', 'user']   角色校验 将控制页面角色(允许设置多个角色)
+    roles?: Roles[]
+    // 路由信息
+    meta?: IRouteMeta
+}
+2.  创建路由
+   /* 需要校验的路由 */
+export const authRoutes: IRoute[] = [
+    {
+        path: '/dashboard',
+        exact: true,
+        component: Dashboard,
+        roles: ['user', 'admin'],
+        meta: {
+            title: '控制台',
+            icon: 'AppstoreOutlined',
+        },
+    },
+       {
+        path: '/user',
+        redirect: '/user/add',
+        roles: ['user', 'admin'],
+        meta: {
+            title: '用户管理',
+            icon: 'UserOutlined',
+        },
+        children: [
+            {
+                path: '/user/list',
+                component: UserList,
+                meta: {
+                    title: '用户列表',
+                },
+            },
+        ],
+    },
+]
+
+export const routes: IRoute[] = [
+    {
+        path: '/system',
+        redirect: '/system/login',
+        component: System,
+        meta: {
+            title: '系统',
+        },
+        children: [
+            {
+                path: '/system/login',
+                exact: true,
+                component: Login,  
+                meta: {
+                    title: '登录',
+                },
+            },
+        ],
+    },
+    {
+        path: '/',
+        redirect: '/dashboard',
+        component: Layout,
+        meta: {
+            title: '系统',
+        },
+        children: [
+            ...authRoutes,
+            /* 错误页面 */
+    {
+        path: '/success',
+        component: lazy(() => import('../views/Success')),
+    },
+    {
+        path: '/error',
+        meta: {
+          title: '错误页面',
+        },
+        redirect: '/error/404',
+        children: [
+          {
+            path: '/error/404',
+            component: lazy(() => import('../views/Error/404')),
+            meta: {
+              title: '页面不存在',
+            },
+          },
+          {
+            path: '/error/403',
+            component: lazy(() => import('../views/Error/403')),
+            meta: {
+              title: '暂无权限',
+            },
+          },
+        ],
+    },
+    {
+        path: '/*',
+        meta: {
+          title: '错误页面',
+        },
+        redirect: '/error/404',
+    },
+    ],
+    },
+]
+
+3. 在主页面遍历最外层layout布局路由
+   SystemLayout 和 LayOut(需要校验的路由)
+   {layoutRouteList.map((route: IRoute) => (
+          <Route
+            key={`${route.path}`}
+            path={route.path}
+            exact={route.exact}
+            component={route.component} />
+   ))}
+4. 去layout页面遍历各自的子路由
+  SystemLayout页面
+  <Suspense fallback={<Spin className='lazy_loading' />}>
+    <Switch>
+        {systemRouteList.map((menu: IRoute) => (
+            <Route exact key={menu.path as string} path={menu.path} component={menu.component} />
+        ))}
+    </Switch>
+  </Suspense>
+  Layout页面
+  <Layout style={{ minHeight: '100vh' }}>
+        {/* 侧边栏 */}
+        <Sider collapsed={sidebar.opened} />
+        <Layout className='site-layout'>
+            {/* 顶部 */}
+            <Header sidebar={sidebar} />
+            {/* 中心区域 */}
+            <Main>
+                <MainRoutes />
+            </Main>
+        </Layout>
+  </Layout>
+5. 在MainRoutes页面下校验判断生成路由表 使用Auth校验组件包裹
+  function renderRoute(route: IRoute) {
+      const { component: Component } = route
+    
+      return (
+          <Route
+            key={`${route.path}`}
+            exact={route.path !== '*'}
+            path={route.path}
+            render={(props) => (
+                <Auth {...props} route={route}>
+                    <Component {...props} />
+                </Auth>
+          )} />
+      )
+  }
+
+  /* 条件渲染/下的路由列表 */
+  function renderRouteList(): React.ReactNode[] {
+    const result: React.ReactNode[] = []
+
+    businessRouteList.forEach((child: IRoute) => {
+      result.push(renderRoute(child))
+    })
+
+    return result
+  }
+  const MainRoutes: React.FC = memo(() => {
+    const routeList = useMemo(() => renderRouteList(), [])
+
+    return (
+        <AsyncRoutes>{routeList}</AsyncRoutes>
+    )
+})
+
+6. Auth组件进行校验，判断是否登录，有权限、跳转链接等。。。
+  function checkAuth(location: RouteComponentProps['location']): boolean {
+  // redux 中的 routes 同时负责渲染 sidebar
+  /* const { flattenRoutes } = store.getState().app */
+
+  const { role } = store.getState().user
+
+  // 判断当前访问路由是否在系统路由中, 不存在直接走最后默认的 404 路由
+  const route = businessRouteList.find((child) => child.path === location.pathname)
+
+  // 当前路由不存在直接返回
+  if (!route) {
+    return true
+  }
+
+  // 当前路由存在跳转也返回true
+  if (route.redirect) {
+    return true
+  }
+
+  // 不需要检验也返回true
+  if (!route.roles) {
+    return true
+  }
+
+  /*   // 查看当前路由是否存在系统中，该用户是否有此路由权限，后端返回路由表的时候使用该方法
+   if (!flattenRoutes.find((child) => child.path === location.pathname)) {
+    return false
+  }  */
+
+  /* 当前用户角色是否有该路由权限, admin直接放行 */
+  if (!route.roles?.includes(role as Roles) && role !== 'admin') {
+    return false
+  }
+
+  return true
+}
+
+function Auth(props: AuthProps) {
+  // 判断是否登录
+  if (!getToken()) {
+    return (
+        <Redirect
+          to={`/system/login?redirectURL=${encodeURIComponent(
+          window.location.origin
+            + props.location.pathname
+            + props.location.search,
+        )}`} />
+    )
+  }
+
+  // 检查是否有权限
+  if (!checkAuth(props.location)) {
+    return <Redirect to='/error/403' push />
+  }
+
+  // 检查是否有跳转
+  if (props.route.redirect) {
+    return <Redirect to={props.route.redirect} push />
+  }
+
+  // 进行渲染 route
+  return <>{props.children}</>
+}
+
+7. AsyncRoutes组件进行侧边栏的生成, 获取当前用户的角色进行过滤路由并存放到redux中
+ function formatMenuToRoute(menus: IRoute[], role: Roles): IRoute[] {
+  const result: IRoute[] = []
+  menus.forEach((menu) => {
+    /* 查看当前路由表是否有权限, admin不用校验 */
+    if (((menu?.path && checkAuth(menu.roles, role)) || role === 'admin')) {
+      const route: IRoute = {
+        path: menu.path,
+        meta: { 
+          title: menu.meta?.title || '未知',
+          icon: menu.meta?.icon,
+        },
+      }
+      if (menu.children) {
+        route.children = formatMenuToRoute(menu.children, role)
+      }
+      result.push(route)
+    }
+  })
+  return result
+}
+
+const AsyncRoutes: React.FC<AsyncRoutesProps> = (props) => {
+  if (!props.init) {
+    /* 
+       进行侧边栏筛选渲染，查看当前路由是否有该权限
+       可以进行异步请求后端路由表，根据后端存储的路由进行渲染，
+       同时存储到Redux中，然后在Auth组件改变校验方式，也就是注释上的
+       如
+        apiGetMenuList()
+        .then(({ data }) => {
+          props.setSideBarRoutes(formatMenuToRoute(data.list));
+        })
+        .catch(() => {})
+    */
+   props.setSideBarRoutes(formatMenuToRoute(authRoutes, props.role))
+
+   return <Spin />
+  }
+  return <TransitionMain>{props.children}</TransitionMain>
+}
+
+export default connect(({ app, user: { role } }: IStoreState) => ({ init: app.init, role }), { setSideBarRoutes })(
+  memo(AsyncRoutes),
+)
+
+# 后台返回路由表的流程
+	#在AsyncRoutes组件中请求后台api，存储路由表
+    返回一个路由表，对路由表进行打平存储以及存储渲染侧边栏
+    apiGetMenuList()
+        .then(({ data }) => {
+          props.setSideBarRoutes(formatMenuToRoute(data.list));
+    })
+    .catch(() => {})
+    #在Auth组件中根据路由表校验，来判断是否生成ROUTE
+    判断打平路由的数组中如果不存在当前页面，返回403即可
+     if (!flattenRoutes.find((child) => child.path === location.pathname)) {
+    		return false
+  	 } 
+
+````
+
+### 按钮级别权限
+
+```` tsx
+  # 根据角色判断是否渲染该组件
+export const checkAuth = (roles?: Roles[], auth?: Roles) => {
+    if (!roles) {
+        return true
+    }
+    /* 判断用户是否在校验表中，条件渲染组件 */
+    return !!roles.includes(auth as never)
+}
+
+const AuthWrapper: React.FC<IProps> = memo(({
+ roles, role, component: Component, noMatch = null, 
+}) => (
+         checkAuth(roles, role) ? Component : noMatch
+))
+
+export default connect(({ user: { role } }: IStoreState) => ({ role }), null)(AuthWrapper)
+
+````
+
+## 源码解析
+
+#### 基础知识 React API 一览 
+
+##### 1.JSX到JavaScript的转换
+
+JSX的代码都会转换成createElement
+
+自定义的组件**需要大写**,否则React.createElement的第一个标签参数会是**字符串**
+
+```` javascript
+function App(){
+	return <div ref='ref'></div>
+}
+
+<App>
+  <div>啊<span key='key'>扫把</span></div>
+</App>
+
+# 转换后
+function App() {
+  return /*#__PURE__*/React.createElement("div", {
+    ref: "ref"
+  });
+}
+
+/*#__PURE__*/
+React.createElement(App, null, /*#__PURE__*/React.createElement("div", null, "\u554A", /*#__PURE__*/React.createElement("span", {
+  key: "key"
+}, "\u626B\u628A")));
 ````
 
